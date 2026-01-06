@@ -333,7 +333,13 @@ const ExpenseModal = ({ isOpen, onClose, onConfirm, expenseData, setExpenseData 
                                     value={expenseData.volume}
                                     onChange={e => {
                                         const val = e.target.value;
-                                        const newAmount = expenseData.unitPrice && val ? (parseFloat(val) * expenseData.unitPrice).toFixed(2) : expenseData.amount;
+                                        let newAmount = expenseData.amount;
+                                        
+                                        // Si hay un precio unitario configurado y se escriben litros, calculamos el monto
+                                        if (expenseData.unitPrice && val) {
+                                            newAmount = (parseFloat(val) * parseFloat(expenseData.unitPrice)).toFixed(2);
+                                        }
+                                        
                                         setExpenseData({...expenseData, volume: val, amount: newAmount});
                                     }}
                                     className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-700"

@@ -225,7 +225,7 @@ const App = () => {
         openExpenseModal('Carga Eléctrica', formatMoney(price));
     };
 
-    const openExpenseModal = (category, amountOverride = null, expenseToEdit = null) => {
+   const openExpenseModal = (category, amountOverride = null, expenseToEdit = null) => {
         const currentVId = (appState === 'ACTIVE' || appState === 'ENDING' || appState === 'STARTING') ? currentTrip.vehicle : dashboardVehicleId;
         const currentOdo = vehicleOdometers[currentVId] || 0;
 
@@ -241,33 +241,40 @@ const App = () => {
                 type: expenseToEdit.type,
                 notes: expenseToEdit.notes || '',
                 odometer: expenseToEdit.odometer || currentOdo,
-                volume: expenseToEdit.volume || ''
+                volume: expenseToEdit.volume || '',
+                unitPrice: null // No recalculamos en edición para no alterar datos históricos
             });
         } else {
             const activeConfig = getActiveConfig();
             const isCompanyVehicle = currentVId.includes('COMPANY');
-            let defaults = { amount: '', currency: 'UYU', method: 'CREDITO', type: isCompanyVehicle ? 'Empresa' : 'Empresa' };
+            let defaults = { amount: '', currency: 'UYU', method: 'CREDITO', type: isCompanyVehicle ? 'Empresa' : 'Empresa', unitPrice: null };
 
             if (category === 'Peaje') {
-                defaults = { amount: formatMoney(activeConfig.tollPrice), currency: activeConfig.currency, method: 'DEBITO', type: 'Personal' };
+                defaults = { amount: formatMoney(activeConfig.tollPrice), currency: activeConfig.currency, method: 'DEBITO', type: 'Personal', unitPrice: null };
             } else if (['Carga Combustible', 'Combustible'].includes(category)) {
-                defaults = { amount: formatMoney(activeConfig.fuelPrice || ''), currency: activeConfig.currency, method: 'CREDITO', type: 'Personal' };
+                // Aquí capturamos el precio del litro para el cálculo automático
+                defaults = { amount: '', currency: activeConfig.currency, method: 'CREDITO', type: 'Personal', unitPrice: activeConfig.fuelPrice };
             } else if (category === 'Carga Eléctrica') {
-                defaults = { amount: amountOverride !== null ? amountOverride : '', currency: activeConfig.currency, method: 'CREDITO', type: 'Personal' };
+                // Para eléctrica, el precio ya viene en amountOverride si se eligió AC/DC, o lo sacamos de config
+                const price = amountOverride || activeConfig.fuelPriceAC; // Default a AC si no se especifica
+                defaults = { amount: '', currency: activeConfig.currency, method: 'CREDITO', type: 'Personal', unitPrice: price };
             }
+            
             const isStandardCurrency = ['UYU', 'U$D'].includes(defaults.currency);
+            
             setExpenseModalData({
                 isOpen: true,
                 id: null,
                 category,
-                amount: defaults.amount,
+                amount: defaults.amount, // Dejamos vacío el monto para que se calcule
                 currency: defaults.currency,
                 currencyType: isStandardCurrency ? defaults.currency : 'Otro',
                 method: defaults.method,
                 type: defaults.type,
                 notes: '',
                 odometer: currentOdo,
-                volume: ''
+                volume: '',
+                unitPrice: defaults.unitPrice // Guardamos el precio unitario
             });
         }
         setShowExpenseCategorySelector(false);
