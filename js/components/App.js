@@ -1,7 +1,6 @@
 const { useState, useEffect } = React;
 
 // --- Imports ---
-// Modales
 const UpdateAppModal = window.UpdateAppModal;
 const ResumeTripModal = window.ResumeTripModal;
 const ExpenseModal = window.ExpenseModal;
@@ -14,7 +13,6 @@ const TripEditModal = window.TripEditModal;
 const VisitEditModal = window.VisitEditModal;
 const DataImportModal = window.DataImportModal;
 
-// Vistas
 const HomeView = window.HomeView;
 const HistoryView = window.HistoryView;
 const SettingsView = window.SettingsView;
@@ -22,15 +20,10 @@ const StartingView = window.StartingView;
 const ActiveTripView = window.ActiveTripView;
 const EndingTripView = window.EndingTripView;
 
-// Servicios
-const GoogleSheetSync = window.GoogleSheetSync;
-
-// Globales
 const APP_VERSION = window.APP_VERSION;
 const formatMoney = window.formatMoney;
 const OFFICIAL_RATES = window.OFFICIAL_RATES;
 const getVehicleInfo = window.getVehicleInfo;
-
 
 window.App = () => {
     // --- ESTADO ---
@@ -146,8 +139,7 @@ window.App = () => {
                 const [sTrips, sExpenses, sVisits, sOdos, sConfigs, sLoc, sState, sUrl] = await Promise.all([
                     window.dbHelper.get('trips'), window.dbHelper.get('expenses'), window.dbHelper.get('visits'),
                     window.dbHelper.get('odometers'), window.dbHelper.get('configs'), window.dbHelper.get('lastLocation'),
-                    window.dbHelper.get('app_state_persist'),
-                    window.dbHelper.get('google_script_url') // <--- Cargar URL
+                    window.dbHelper.get('app_state_persist'), window.dbHelper.get('google_script_url')
                 ]);
 
                 if (sTrips) setTrips(sTrips);
@@ -156,7 +148,7 @@ window.App = () => {
                 if (sOdos) setVehicleOdometers(sOdos);
                 if (sLoc) setLastLocation(sLoc);
                 if (sConfigs) setVehicleConfigs(sConfigs);
-                if (sUrl) setGoogleScriptUrl(sUrl); // <--- Setear URL
+                if (sUrl) setGoogleScriptUrl(sUrl);
                 
                 if (sState && sState.appState === 'ACTIVE') {
                      setPendingResumeData(sState);
@@ -177,27 +169,30 @@ window.App = () => {
         window.dbHelper.set('configs', vehicleConfigs);
         window.dbHelper.set('lastLocation', lastLocation);
         window.dbHelper.set('app_state_persist', { appState, currentTrip });
-        window.dbHelper.set('google_script_url', googleScriptUrl); // <--- Guardar URL
+        window.dbHelper.set('google_script_url', googleScriptUrl);
     }}, [trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, appState, currentTrip, googleScriptUrl, dataLoaded]);
 
-    // --- CLOUD SYNC HANDLER ---
+    // --- CLOUD SYNC HANDLER (UPDATED) ---
     const handleCloudSync = async () => {
         if (!googleScriptUrl) return;
         setIsSyncing(true);
         try {
+            // Empaquetamos TODO para que el script lo guarde
             const dataToSync = {
                 trips,
                 expenses,
-                visits
+                visits,
+                vehicleOdometers,
+                vehicleConfigs,
+                lastLocation
             };
             
-            // Usar el servicio global (asegúrate de que GoogleSheetSync esté cargado en index.html)
             if (!window.GoogleSheetSync) throw new Error("El servicio de sincronización no está cargado.");
             
             const result = await window.GoogleSheetSync.syncData(googleScriptUrl, dataToSync);
             
             if (result.status === 'success') {
-                alert("✅ Sincronización completada con éxito.");
+                alert("✅ Sincronización completa (Viajes, Configuración y Estado).");
             } else {
                 alert("⚠️ " + (result.message || "Error desconocido en el servidor."));
             }
@@ -310,7 +305,6 @@ window.App = () => {
         if (newTrip.destination.toLowerCase().startsWith('cliente')) {
             setVisits(prev => [{ id: Date.now() + '_visit', client: newTrip.destination, date: newTrip.date, inboundTrip: newTrip, outboundTrip: null, status: 'OPEN' }, ...prev]);
         }
-
         setVehicleOdometers(prev => ({ ...prev, [currentTrip.vehicle]: endOdo }));
         setLastLocation(inputDestination);
         setAppState('IDLE');
@@ -345,7 +339,6 @@ window.App = () => {
         setVehicleConfigs(prev => ({ ...prev, [editingVehicleId]: { ...prev[editingVehicleId], [field]: value } }));
     };
 
-    // --- FUNCION FALTANTE AGREGADA ---
     const handleChargeTypeSelection = (type) => {
         setShowChargeTypeModal(false);
         const activeConfig = getActiveConfig();

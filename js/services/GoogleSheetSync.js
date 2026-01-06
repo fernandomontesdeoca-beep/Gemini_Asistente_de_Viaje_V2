@@ -4,25 +4,23 @@
 
 window.GoogleSheetSync = {
     /**
-     * Envía los datos locales al script de Google Apps Script
-     * @param {string} url - La URL de la Web App de Google Script
-     * @param {object} data - Objeto con trips, expenses y visits
+     * Envía TODOS los datos locales al script de Google Apps Script
      */
     syncData: async (url, data) => {
         if (!url) throw new Error("URL de configuración no válida.");
 
-        // Preparamos el paquete de datos
+        // Empaquetamos TODO el estado de la aplicación
         const payload = {
             trips: data.trips || [],
             expenses: data.expenses || [],
             visits: data.visits || [],
-            syncDate: new Date().toISOString(),
+            vehicleOdometers: data.vehicleOdometers || {},
+            vehicleConfigs: data.vehicleConfigs || {},
+            lastLocation: data.lastLocation || "",
             appVersion: window.APP_VERSION || 'unknown'
         };
 
         try {
-            // Usamos 'text/plain' para evitar problemas de CORS (Preflight OPTIONS)
-            // Google Apps Script maneja esto perfectamente
             const response = await fetch(url, {
                 method: "POST",
                 body: JSON.stringify(payload),
@@ -45,7 +43,7 @@ window.GoogleSheetSync = {
 
         } catch (error) {
             console.error("Error en sincronización:", error);
-            throw error; // Re-lanzamos para manejarlo en la UI
+            throw error;
         }
     }
 };

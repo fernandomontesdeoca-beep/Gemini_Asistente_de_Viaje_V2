@@ -3,7 +3,7 @@
 // ==========================================
 
 // --- VERSIÓN DE LA APP ---
-window.APP_VERSION = "2.6.0"; // Debe coincidir con version.json
+window.APP_VERSION = "2.7.0"; // Debe coincidir con version.json
 
 // --- UI CONFIG ---
 window.LOCATIONS_CONFIG = {
