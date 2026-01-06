@@ -2,5 +2,5 @@
   "version": "2.2.0",
   "build": "20250106",
   "priority": "high",
-  "description": "Refactorización modular para mejor mantenimiento"
+  "description": "Fix Service Worker CORS issues"
 }

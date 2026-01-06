@@ -1,9 +1,8 @@
 const CACHE_NAME = 'trip-assistant-v2.2.0'; // ACTUALIZADO A 2.2.0
-const IS_PRODUCTION = true; 
+const IS_PRODUCTION = true;
 
 // Archivos LOCALES requeridos para que la app funcione offline.
-// Nota: No incluimos librerías externas (CDN) aquí para evitar errores CORS.
-// El navegador las cacheará por su cuenta en la caché HTTP normal.
+// NOTA: Hemos eliminado las librerías externas (CDN) de esta lista para evitar errores.
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -47,16 +46,15 @@ self.addEventListener('activate', (event) => {
 
 // Intercepción de peticiones
 self.addEventListener('fetch', (event) => {
-  // Estrategia: Cache First, falling back to Network
-  // Intentamos servir desde caché. Si no está (ej. librerías externas la primera vez), vamos a la red.
   event.respondWith(
     caches.match(event.request).then((response) => {
+      // Si está en caché, devolverlo
       if (response) {
         return response;
       }
+      // Si no, ir a la red
       return fetch(event.request).catch(() => {
-        // Fallback offline (opcional, por si no hay red y no está en caché)
-        // Podríamos retornar una página de "Sin conexión" genérica aquí
+        // Fallback offline (opcional)
       });
     })
   );
