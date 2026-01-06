@@ -20,7 +20,7 @@ Una aplicación web progresiva (PWA) de **archivo único** diseñada para llevar
 
 ### **Opción 1: Online (GitHub Pages)**
 
-https://fernandomontesdeoca-beep.github.io/Gemini_Asistente_de_viaje/
+https://fernandomontesdeoca-beep.github.io/Gemini_Asistente_de_Viaje_V2/
 
 ### **Opción 2: Local (PC o Android)**
 
@@ -56,3 +56,4 @@ Las contribuciones son bienvenidas. Si tienes una idea para mejorar el asistente
 ## **📄 Licencia**
 
 Este proyecto está bajo la Licencia MIT. Ver el archivo LICENSE para más detalles.
+
