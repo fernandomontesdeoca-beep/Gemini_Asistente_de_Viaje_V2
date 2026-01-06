@@ -1,4 +1,5 @@
 const { useState, useEffect } = React;
+const Icon = window.Icon; // Referencia al componente global de Iconos
 
 // ==========================================
 // COMPONENTES DE MODALES
@@ -16,6 +17,7 @@ window.UpdatePromptModal = ({ isOpen, onClose, onConfirm, changes }) => {
                     <h3 className="text-xl font-bold text-slate-800 mb-2">Tarifas Actualizadas</h3>
                     <p className="text-slate-500 mb-4 text-xs">Los valores oficiales en la web son distintos a tu configuración.</p>
                     
+                    {/* TABLA DE COMPARACIÓN */}
                     <div className="bg-slate-50 rounded-xl p-3 w-full mb-6">
                         <div className="grid grid-cols-3 gap-1 text-xs font-bold text-slate-400 border-b border-slate-200 pb-2 mb-2 uppercase tracking-wider">
                             <span className="text-left">Concepto</span>
@@ -118,11 +120,13 @@ window.DestinationInputModal = ({ isOpen, onClose, onConfirm, title, placeholder
     return (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200">
+                {/* CABECERA: Título y Botón Cerrar */}
                 <div className="flex justify-between items-start mb-6">
                     <div className="flex items-center text-blue-600">
                         <Icon name="MapPin" size={24} className="mr-2"/>
                         <h3 className="text-xl font-bold text-slate-800">{title}</h3>
                     </div>
+                    {/* Botón X para cancelar */}
                     <button 
                         onClick={onClose} 
                         className="p-2 -mr-2 -mt-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
@@ -168,6 +172,7 @@ window.VisitEditModal = ({ isOpen, onClose, onSave, onDelete, visit }) => {
 
     if (!isOpen || !visit) return null;
 
+    // Helper para listar gastos de un viaje
     const renderExpenses = (trip) => {
         if (!trip || !trip.expenses || trip.expenses.length === 0) return null;
         return trip.expenses.map((exp, idx) => (
@@ -189,6 +194,7 @@ window.VisitEditModal = ({ isOpen, onClose, onSave, onDelete, visit }) => {
                 </div>
 
                 <div className="space-y-4 overflow-y-auto pr-1 custom-scrollbar scrollbar-hide">
+                    {/* Edición de Nombre */}
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cliente</label>
                         <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-3">
@@ -202,6 +208,7 @@ window.VisitEditModal = ({ isOpen, onClose, onSave, onDelete, visit }) => {
                         </div>
                     </div>
 
+                    {/* Resumen de Gastos - IDA */}
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                         <div className="flex items-center mb-2 text-blue-600 font-bold text-xs uppercase tracking-wide">
                             <Icon name="ArrowRight" size={12} className="mr-1"/> Viaje de Ida
@@ -209,6 +216,7 @@ window.VisitEditModal = ({ isOpen, onClose, onSave, onDelete, visit }) => {
                         {renderExpenses(visit.inboundTrip) || <p className="text-xs text-slate-400 italic">Sin gastos registrados</p>}
                     </div>
 
+                    {/* Resumen de Gastos - VUELTA */}
                     {visit.outboundTrip && (
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <div className="flex items-center mb-2 text-emerald-600 font-bold text-xs uppercase tracking-wide">
@@ -239,9 +247,12 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
         setFormData(trip || {});
     }, [trip]);
 
+    // Función para recalcular distancia si cambian los odómetros
     const handleOdometerChange = (type, val) => {
         const newValue = parseInt(val) || 0;
         const newFormData = { ...formData, [type]: newValue };
+        
+        // Si ambos odómetros tienen valor, calcular distancia
         if (newFormData.startOdometer !== undefined && newFormData.endOdometer !== undefined) {
             newFormData.distance = newFormData.endOdometer - newFormData.startOdometer;
         }
@@ -259,6 +270,7 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                     </h3>
                     <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><Icon name="X" size={20} className="text-slate-500"/></button>
                 </div>
+                
                 <div className="space-y-4 overflow-y-auto flex-1 pr-2 scrollbar-hide">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -276,6 +288,7 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                         </div>
                     </div>
                     
+                    {/* Campos de Odómetro */}
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl">
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Odo. Inicio</label>
@@ -286,6 +299,7 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                             <input type="number" value={formData.endOdometer || 0} onChange={e => handleOdometerChange('endOdometer', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm text-slate-700" onFocus={(e) => e.target.select()}/>
                         </div>
                     </div>
+
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Origen</label>
                         <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
@@ -293,6 +307,7 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                             <input type="text" value={formData.origin || ''} onChange={e => setFormData({...formData, origin: e.target.value})} className="bg-transparent w-full text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
                         </div>
                     </div>
+
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Destino</label>
                         <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
@@ -300,6 +315,7 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                             <input type="text" value={formData.destination || ''} onChange={e => setFormData({...formData, destination: e.target.value})} className="bg-transparent w-full text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
                         </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Inicio</label>
@@ -311,6 +327,7 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                         </div>
                     </div>
                 </div>
+        
                 <div className="mt-6 flex gap-3">
                     <button onClick={() => onDelete(formData.id)} className="p-4 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"><Icon name="Trash2" size={20}/></button>
                     <button onClick={() => onSave(formData)} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all active:scale-95">Guardar Cambios</button>
@@ -337,6 +354,7 @@ window.ExpenseModal = ({ isOpen, onClose, onConfirm, expenseData, setExpenseData
                     <button onClick={() => onClose()} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><Icon name="X" size={20} className="text-slate-500"/></button>
                 </div>
                 <div className="space-y-4">
+                     {/* CAMPOS EXTRA PARA CARGA (COMBUSTIBLE O ELECTRICA) */}
                      {isCharge && (
                         <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                             <div>
@@ -358,9 +376,12 @@ window.ExpenseModal = ({ isOpen, onClose, onConfirm, expenseData, setExpenseData
                                     onChange={e => {
                                         const val = e.target.value;
                                         let newAmount = expenseData.amount;
+                                        
+                                        // Si hay un precio unitario configurado y se escriben litros, calculamos el monto
                                         if (expenseData.unitPrice && val) {
                                             newAmount = (parseFloat(val) * parseFloat(expenseData.unitPrice)).toFixed(2);
                                         }
+                                        
                                         setExpenseData({...expenseData, volume: val, amount: newAmount});
                                     }}
                                     className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-700"
@@ -443,6 +464,7 @@ window.ExpenseModal = ({ isOpen, onClose, onConfirm, expenseData, setExpenseData
                     </div>
                 </div>
                 <div className="flex gap-3 mt-6">
+                    {/* Mostrar botón eliminar si se está editando (tiene ID) */}
                     {expenseData.id && (
                         <button onClick={() => onClose('DELETE')} className="p-4 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"><Icon name="Trash2" size={20}/></button>
                     )}
@@ -506,7 +528,7 @@ window.UpdateAppModal = ({ isOpen, onClose, onConfirm }) => {
                     <p className="text-slate-500 mb-6 text-sm">Hay una actualización lista con mejoras y correcciones.</p>
                     <div className="w-full flex gap-3">
                         <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200">Más tarde</button>
-                        <button onClick={onConfirm} className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200">Actualizar Ahora</button>
+                        <button onClick={onConfirm} className="flex-1 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200">Actualizar Ahora</button>
                     </div>
                 </div>
             </div>
@@ -543,6 +565,41 @@ window.ResumeTripModal = ({ isOpen, onResume, onDiscard }) => {
                             className="flex-1 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
                         >
                             Continuar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// NUEVO MODAL IMPORTAR
+window.DataImportModal = ({ isOpen, onClose, onImport }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+                <div className="flex flex-col items-center text-center">
+                    <div className="bg-rose-100 p-4 rounded-full mb-4">
+                        <Icon name="AlertTriangle" size={32} className="text-rose-600"/>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Importar Datos</h3>
+                    <p className="text-slate-500 mb-6 text-sm">
+                        ¡Atención! Al importar un archivo de respaldo, 
+                        <strong className="text-rose-600"> se borrarán todos los datos actuales</strong> y serán reemplazados por los del archivo.
+                    </p>
+                    <div className="w-full flex gap-3">
+                        <button 
+                            onClick={onClose} 
+                            className="flex-1 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={onImport} 
+                            className="flex-1 py-3 rounded-xl font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-lg shadow-rose-200 transition-all"
+                        >
+                            Sí, Importar
                         </button>
                     </div>
                 </div>
