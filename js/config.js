@@ -2,6 +2,9 @@
 // CONFIGURACIÓN Y CONSTANTES
 // ==========================================
 
+// --- VERSIÓN DE LA APP ---
+const APP_VERSION = "2.1.0"; // Debe coincidir con version.json
+
 // --- UI CONFIG ---
 const LOCATIONS_CONFIG = {
     'Cliente': { icon: 'User', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },

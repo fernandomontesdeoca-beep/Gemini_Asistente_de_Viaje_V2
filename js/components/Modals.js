@@ -455,3 +455,24 @@ const CategorySelector = ({ isOpen, onClose, onSelect }) => {
         </div>
     );
 };
+
+const UpdateAppModal = ({ isOpen, onClose, onConfirm }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+                <div className="flex flex-col items-center text-center">
+                    <div className="bg-emerald-100 p-3 rounded-full mb-4">
+                        <Icon name="Zap" size={32} className="text-emerald-600"/>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">¡Nueva Versión Disponible!</h3>
+                    <p className="text-slate-500 mb-6 text-sm">Hay una actualización lista con mejoras y correcciones.</p>
+                    <div className="w-full flex gap-3">
+                        <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200">Más tarde</button>
+                        <button onClick={onConfirm} className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200">Actualizar Ahora</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};

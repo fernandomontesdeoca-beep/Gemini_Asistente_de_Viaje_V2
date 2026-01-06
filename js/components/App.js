@@ -2,7 +2,9 @@ const { useState, useEffect } = React;
 
 const App = () => {
     // --- ESTADO ---
-    const [rateChanges, setRateChanges] = useState([]); // <--- NUEVO ESTADO PARA TARIFAS
+    const [rateChanges, setRateChanges] = useState([]);
+    const [showUpdateAppModal, setShowUpdateAppModal] = useState(false); // <--- NUEVO: Estado para actualización de App
+    
     const [appState, setAppState] = useState('IDLE');
     const [defaultVehicleId, setDefaultVehicleId] = useState('PERSONAL');
     const [historyTab, setHistoryTab] = useState('TRIPS');
@@ -30,17 +32,17 @@ const App = () => {
     const [showDestinationModal, setShowDestinationModal] = useState(false); 
     const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
     const [showParkingAskModal, setShowParkingAskModal] = useState(false);
-    const [showChargeTypeModal, setShowChargeTypeModal] = useState(false); // Modal selector AC/DC
-    const [showUpdatePrompt, setShowUpdatePrompt] = useState(false); // Modal actualización online
+    const [showChargeTypeModal, setShowChargeTypeModal] = useState(false); 
+    const [showUpdatePrompt, setShowUpdatePrompt] = useState(false); 
 
     const [editingTrip, setEditingTrip] = useState(null);
-    const [editingVisit, setEditingVisit] = useState(null); // Nuevo estado para editar visita
+    const [editingVisit, setEditingVisit] = useState(null);
     
     const [locationSelectorMode, setLocationSelectorMode] = useState('ORIGIN'); 
     const [textModalTitle, setTextModalTitle] = useState('Nombre del Cliente');
     const [pendingStartData, setPendingStartData] = useState(null);
 
-    // Configs (Valores actuales)
+    // Configs
     const [vehicleConfigs, setVehicleConfigs] = useState({
         PERSONAL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '15.00', currency: 'UYU' },
         COMPANY_FUEL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '12.00', currency: 'UYU' },
@@ -61,7 +63,7 @@ const App = () => {
 
     const [expenseModalData, setExpenseModalData] = useState({
         isOpen: false,
-        id: null, // Para edición
+        id: null,
         category: '', 
         amount: '',
         currency: 'UYU',
@@ -69,8 +71,8 @@ const App = () => {
         method: 'EFECTIVO',
         type: 'Personal',
         notes: '',
-        odometer: '', // Nuevo campo
-        volume: '' // Nuevo campo (litros/kwh)
+        odometer: '',
+        volume: ''
     });
 
     const [inputOdometer, setInputOdometer] = useState('');
@@ -78,6 +80,52 @@ const App = () => {
     const [showGapAlert, setShowGapAlert] = useState(false);
     const [gapKm, setGapKm] = useState(0);
     const [elapsedTime, setElapsedTime] = useState(0);
+
+    // --- NUEVO: CHECK DE VERSIÓN ---
+    useEffect(() => {
+        const checkAppVersion = async () => {
+            try {
+                // Agregamos timestamp para evitar que el navegador use una versión vieja del JSON en caché
+                const response = await fetch(`./version.json?t=${new Date().getTime()}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    // Comparamos la versión de la nube con la local (APP_VERSION de config.js)
+                    if (data.version !== APP_VERSION) {
+                        console.log(`Nueva versión detectada: ${data.version} (Actual: ${APP_VERSION})`);
+                        setShowUpdateAppModal(true);
+                    }
+                }
+            } catch (error) {
+                console.warn("No se pudo comprobar la versión:", error);
+            }
+        };
+
+        // Solo comprobar si estamos en modo IDLE (pantalla principal)
+        if (appState === 'IDLE') {
+            checkAppVersion();
+        }
+    }, [appState]);
+
+    const handleAppUpdateConfirm = () => {
+        // 1. Borrar todas las cachés para asegurar limpieza
+        if ('caches' in window) {
+            caches.keys().then((names) => {
+                names.forEach((name) => {
+                    caches.delete(name);
+                });
+            });
+        }
+        // 2. Desregistrar Service Workers
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then((registrations) => {
+                registrations.forEach((registration) => {
+                    registration.unregister();
+                });
+            });
+        }
+        // 3. Forzar recarga desde el servidor
+        window.location.reload(true);
+    };
 
     // --- INDEXEDDB LOAD & SAVE ---
     useEffect(() => {
@@ -100,25 +148,17 @@ const App = () => {
                 
                 if (savedConfigs) {
                     setVehicleConfigs(savedConfigs);
-                    
-                    // --- NUEVA LÓGICA DE COMPARACIÓN ---
+                    // Comparación de Tarifas
                     const detectedChanges = [];
-                    
-                    // 1. Usamos 'PERSONAL' como referencia para Peaje y Nafta
                     const myRef = savedConfigs['PERSONAL']; 
-                    
                     if (myRef) {
-                        // Comparar Peaje
                         if (parseFloat(myRef.tollPrice) !== parseFloat(OFFICIAL_RATES.toll)) {
                             detectedChanges.push({ label: 'Peaje', oldVal: myRef.tollPrice, newVal: OFFICIAL_RATES.toll });
                         }
-                        // Comparar Nafta
                         if (parseFloat(myRef.fuelPrice) !== parseFloat(OFFICIAL_RATES.fuel)) {
                             detectedChanges.push({ label: 'Nafta', oldVal: myRef.fuelPrice, newVal: OFFICIAL_RATES.fuel });
                         }
                     }
-
-                    // 2. Usamos 'COMPANY_ELECTRIC' como referencia para Eléctricos
                     const elecRef = savedConfigs['COMPANY_ELECTRIC'];
                     if (elecRef) {
                         if (parseFloat(elecRef.fuelPriceAC) !== parseFloat(OFFICIAL_RATES.electricAC)) {
@@ -128,14 +168,11 @@ const App = () => {
                             detectedChanges.push({ label: 'Carga DC', oldVal: elecRef.fuelPriceDC, newVal: OFFICIAL_RATES.electricDC });
                         }
                     }
-
-                    // Solo mostrar el modal si hay diferencias reales
                     if (detectedChanges.length > 0) {
                         setRateChanges(detectedChanges);
                         setShowUpdatePrompt(true);
                     }
                 }
-
                 setDataLoaded(true);
             } catch (error) {
                 console.error("Error loading DB", error);
@@ -164,7 +201,6 @@ const App = () => {
     }, [appState]);
 
     // --- LOGIC ---
-
     const handleUpdateRates = () => {
         const updatedConfigs = { ...vehicleConfigs };
         Object.keys(updatedConfigs).forEach(key => {
@@ -188,15 +224,12 @@ const App = () => {
         setShowChargeTypeModal(false);
         const activeConfig = getActiveConfig();
         let price = 0;
-        
         if (type === 'AC') price = parseFloat(activeConfig.fuelPriceAC || 0);
         else if (type === 'DC') price = parseFloat(activeConfig.fuelPriceDC || 0);
-
         openExpenseModal('Carga Eléctrica', formatMoney(price));
     };
 
     const openExpenseModal = (category, amountOverride = null, expenseToEdit = null) => {
-        // Determine current odometer for charge events
         const currentVId = (appState === 'ACTIVE' || appState === 'ENDING' || appState === 'STARTING') ? currentTrip.vehicle : dashboardVehicleId;
         const currentOdo = vehicleOdometers[currentVId] || 0;
 
@@ -217,7 +250,6 @@ const App = () => {
         } else {
             const activeConfig = getActiveConfig();
             const isCompanyVehicle = currentVId.includes('COMPANY');
-
             let defaults = { amount: '', currency: 'UYU', method: 'CREDITO', type: isCompanyVehicle ? 'Empresa' : 'Empresa' };
 
             if (category === 'Peaje') {
@@ -227,9 +259,7 @@ const App = () => {
             } else if (category === 'Carga Eléctrica') {
                 defaults = { amount: amountOverride !== null ? amountOverride : '', currency: activeConfig.currency, method: 'CREDITO', type: 'Personal' };
             }
-
             const isStandardCurrency = ['UYU', 'U$D'].includes(defaults.currency);
-            
             setExpenseModalData({
                 isOpen: true,
                 id: null,
@@ -240,7 +270,7 @@ const App = () => {
                 method: defaults.method,
                 type: defaults.type,
                 notes: '',
-                odometer: currentOdo, // Pre-fill with current vehicle odometer
+                odometer: currentOdo,
                 volume: ''
             });
         }
@@ -248,21 +278,18 @@ const App = () => {
     };
 
     const confirmExpense = () => {
-        // Validar si es carga y actualizar odómetro global si es necesario
         const isCharge = ['Carga Combustible', 'Carga Eléctrica'].includes(expenseModalData.category);
         const currentVId = (appState === 'ACTIVE' || appState === 'ENDING' || appState === 'STARTING') ? currentTrip.vehicle : dashboardVehicleId;
         
         if (isCharge && expenseModalData.odometer) {
             const newOdo = parseInt(expenseModalData.odometer);
             if (!isNaN(newOdo) && newOdo > vehicleOdometers[currentVId]) {
-                // Actualizar odómetro del vehículo si el ingresado es mayor
                 setVehicleOdometers(prev => ({ ...prev, [currentVId]: newOdo }));
             }
         }
 
         if (expenseModalData.id) {
-            // Editing existing expense
-                setExpenses(prev => prev.map(e => e.id === expenseModalData.id ? {
+             setExpenses(prev => prev.map(e => e.id === expenseModalData.id ? {
                 ...e,
                 category: expenseModalData.category,
                 amount: parseFloat(expenseModalData.amount) || 0,
@@ -275,7 +302,6 @@ const App = () => {
             } : e));
             setExpenseModalData({ ...expenseModalData, isOpen: false });
         } else {
-            // Creating new expense
             const newExpense = {
                 id: Date.now(),
                 date: new Date().toLocaleDateString(),
@@ -300,7 +326,6 @@ const App = () => {
             setExpenses(prev => [newExpense, ...prev]);
             setExpenseModalData({ ...expenseModalData, isOpen: false });
 
-            // Check for pending start trip after parking expense
             if (appState === 'STARTING' && pendingStartData) {
                 startTripProcess(pendingStartData.odo, pendingStartData.dest);
                 setPendingStartData(null);
@@ -308,7 +333,7 @@ const App = () => {
         }
     };
 
-        const deleteExpense = () => {
+    const deleteExpense = () => {
         if (expenseModalData.id) {
             setExpenses(prev => prev.filter(e => e.id !== expenseModalData.id));
             setExpenseModalData({ ...expenseModalData, isOpen: false });
@@ -355,7 +380,6 @@ const App = () => {
             return;
         }
         
-        // Parking Check Logic
         const isOriginClient = lastLocation.toLowerCase().includes('cliente') || ['Otra', 'Otro'].includes(lastLocation);
         const hasParkingExpense = currentTrip.tripExpenses.some(e => e.category === 'Estacionamiento');
 
@@ -364,7 +388,6 @@ const App = () => {
             setShowParkingAskModal(true);
             return;
         }
-
         startTripProcess(inputOdoVal, destinationOverride);
     };
 
@@ -380,15 +403,10 @@ const App = () => {
     };
 
     const handleArrivePress = () => {
-        // Obtener el último odómetro conocido (puede ser el de inicio o uno actualizado en carga)
         const currentVehicleOdo = vehicleOdometers[currentTrip.vehicle] || 0;
         const startOdo = parseInt(currentTrip.startOdometer) || 0;
-        
-        // Usamos el mayor valor para evitar retrocesos
         const lastKnown = Math.max(currentVehicleOdo, startOdo);
-        
         setInputOdometer((lastKnown + 1).toString());
-
         if (currentTrip.destination) {
             setInputDestination(currentTrip.destination);
         } else {
@@ -414,8 +432,8 @@ const App = () => {
             vehicle: currentTrip.vehicle,
             expenses: currentTrip.tripExpenses,
             status: 'CLOSED',
-            startOdometer: currentTrip.startOdometer, // GUARDAR ODOMETRO INICIO
-            endOdometer: endOdo // GUARDAR ODOMETRO FIN
+            startOdometer: currentTrip.startOdometer,
+            endOdometer: endOdo
         };
 
         setTrips(prev => [newTrip, ...prev]);
@@ -424,7 +442,6 @@ const App = () => {
             setVisits(prev => {
                 const idx = prev.findIndex(v => v.client === newTrip.origin && v.status === 'OPEN');
                 if (idx !== -1) {
-                    // Update existing visit
                     const updated = [...prev];
                     updated[idx] = { 
                         ...updated[idx], 
@@ -482,12 +499,8 @@ const App = () => {
         }
     }
     
-    // --- SYNC LOGIC (The "Single Source of Truth" Fix) ---
     const saveEditedTrip = (updatedTrip) => {
-        // 1. Update Trips List
         setTrips(prev => prev.map(t => t.id === updatedTrip.id ? updatedTrip : t));
-        
-        // 2. Sync with Visits (Find visits that contain this trip and update them)
         setVisits(prev => prev.map(v => {
             let newV = { ...v };
             let changed = false;
@@ -501,10 +514,7 @@ const App = () => {
             }
             return changed ? newV : v;
         }));
-        
         setEditingTrip(null);
-
-        // 3. Update global odometer if this is the latest trip (Sync with Version 1.0.39 logic)
         const vehicleTrips = trips.filter(t => t.vehicle === updatedTrip.vehicle);
         if (vehicleTrips.length > 0 && vehicleTrips[0].id === updatedTrip.id) {
                 setVehicleOdometers(prev => ({
@@ -515,18 +525,13 @@ const App = () => {
     };
 
     const deleteTrip = (tripId) => {
-        // 1. Delete from Trips
         setTrips(prev => prev.filter(t => t.id !== tripId));
-        
-        // 2. Sync with Visits (Remove trip from visit, or delete visit if empty?)
-        // Strategy: Just nullify the trip. If both null, visit remains but empty (or could delete).
         setVisits(prev => prev.map(v => {
             let newV = { ...v };
             if (newV.inboundTrip && newV.inboundTrip.id === tripId) newV.inboundTrip = null;
             if (newV.outboundTrip && newV.outboundTrip.id === tripId) newV.outboundTrip = null;
             return newV;
         }));
-        
         setEditingTrip(null);
     };
     
@@ -549,6 +554,13 @@ const App = () => {
     // --- RENDER ---
     return (
         <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-100">
+            {/* NUEVO: MODAL DE ACTUALIZACIÓN DE APP */}
+            <UpdateAppModal 
+                isOpen={showUpdateAppModal}
+                onClose={() => setShowUpdateAppModal(false)}
+                onConfirm={handleAppUpdateConfirm}
+            />
+
             <ExpenseModal 
                 isOpen={expenseModalData.isOpen} 
                 onClose={(action) => {
@@ -580,12 +592,10 @@ const App = () => {
                 onClose={() => setShowDestinationModal(false)}
                 onConfirm={(name) => {
                     const finalName = name.trim();
-                    // Lógica para añadir prefijo si es cliente
                     let formattedName = finalName;
                     if (textModalTitle.includes('Cliente') && !finalName.toLowerCase().startsWith('cliente')) {
                             formattedName = `Cliente: ${finalName}`;
                     }
-
                     if (locationSelectorMode === 'ORIGIN') {
                         setLastLocation(formattedName);
                         setShowDestinationModal(false);
@@ -614,7 +624,6 @@ const App = () => {
                 onYes={() => {
                     setShowParkingAskModal(false);
                     openExpenseModal('Estacionamiento');
-                    // The actual start will happen in confirmExpense
                 }}
             />
 
@@ -778,7 +787,7 @@ const App = () => {
                 </div>
             )}
             
-            {/* ... Resto de las vistas ... */}
+            {/* ... Vistas STARTING, ACTIVE, ENDING, SETTINGS, HISTORY ... */}
             {appState === 'STARTING' && (
                 <div className="flex flex-col h-screen w-full max-w-md mx-auto p-5 font-sans relative overflow-hidden bg-white shadow-2xl">
                         {showGapAlert && (
