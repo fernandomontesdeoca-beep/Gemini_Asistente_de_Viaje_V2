@@ -6,6 +6,13 @@ window.HistoryView = ({
     historyTab, setHistoryTab, trips, visits, expenses, 
     setAppState, setEditingTrip, setEditingVisit, openExpenseModal 
 }) => {
+
+    // Función auxiliar segura para calcular totales
+    const calculateSafeTotal = (trip) => {
+        if (!trip || !trip.expenses || !Array.isArray(trip.expenses)) return 0;
+        return trip.expenses.reduce((sum, e) => sum + (e.currency === 'UYU' ? Number(e.amount) : 0), 0);
+    };
+
     return (
         <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50">
             <div className="bg-slate-800 text-white p-6 pb-8 rounded-b-[2rem] shadow-xl z-10">
@@ -40,6 +47,15 @@ window.HistoryView = ({
                                             <span className="text-xs text-slate-400">{t.startTime} - {t.endTime}</span>
                                         </div>
                                     </div>
+                                    {/* Mostrar badge si hay gastos de carga */}
+                                    {t.expenses && Array.isArray(t.expenses) && t.expenses.some(e => e.category.includes('Carga')) && (
+                                        <div className="mt-2 pt-2 border-t border-slate-50 flex items-center justify-between text-[10px] text-slate-500">
+                                            <span className="flex items-center"><Icon name="Fuel" size={10} className="mr-1"/> Carga</span>
+                                            <span className="font-bold">
+                                                {t.expenses.find(e => e.category.includes('Carga')).volume} {t.expenses.find(e => e.category.includes('Carga')).category.includes('Eléctrica') ? 'kWh' : 'L'}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             ))
                     )}
@@ -57,10 +73,11 @@ window.HistoryView = ({
                                         </div>
                                         <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${v.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{v.status === 'COMPLETED' ? 'Completada' : 'En Curso'}</span>
                                     </div>
+                                    
                                     <div className="text-xs text-slate-500 space-y-2 mt-2 bg-slate-50 p-2 rounded-lg">
                                         <div className="flex justify-between items-center">
                                             <span className="flex items-center"><Icon name="ArrowRight" size={12} className="mr-1 text-blue-500"/> Ida</span>
-                                            <span className="font-mono">{v.inboundTrip.startTime} ({v.inboundTrip.distance}km)</span>
+                                            <span className="font-mono">{v.inboundTrip ? `${v.inboundTrip.startTime} (${v.inboundTrip.distance}km)` : 'N/A'}</span>
                                         </div>
                                         {v.outboundTrip ? (
                                             <div className="flex justify-between items-center border-t border-slate-200 pt-2">
@@ -71,11 +88,12 @@ window.HistoryView = ({
                                             <div className="text-amber-500 italic text-right">Pendiente de retorno...</div>
                                         )}
                                     </div>
+
+                                    {/* Calculo de Costo Total SEGURO */}
                                     <div className="flex justify-between border-t border-slate-100 pt-3 mt-1 font-bold text-slate-700">
                                         <span>Total Gastos:</span>
                                         <span className="text-blue-600">
-                                            ${formatMoney(v.inboundTrip.expenses.reduce((sum, e) => sum + (e.currency === 'UYU' ? e.amount : 0), 0) + 
-                                            (v.outboundTrip ? v.outboundTrip.expenses.reduce((sum, e) => sum + (e.currency === 'UYU' ? e.amount : 0), 0) : 0))}
+                                            ${formatMoney(calculateSafeTotal(v.inboundTrip) + calculateSafeTotal(v.outboundTrip))}
                                         </span>
                                     </div>
                                 </div>
