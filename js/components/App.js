@@ -1385,6 +1385,6 @@ const UpdateAppModal = ({ isOpen, onClose, onConfirm }) => {
         </div>
     );
 };
-}
+
 Si hago clic en una visita en historial me abre el modal y muestra la información, si quiero ver los gastos no hace nada, creo que la idea es que muestre el modal de edición como ya lo hacía pero a este agregarle el detalle del total de gastos en la visita.
 Con respecto al formato de hora esta bien, lo veo en el modal 12:00.
