@@ -1,146 +1,205 @@
-// MAPA DE COLUMNAS 
+// ==========================================
+// BACKEND: ASISTENTE DE VIAJE v3.3.0
+// ==========================================
+
+// Definición de columnas (Schema)
 const SCHEMA = {
-  TRIPS: ["id", "date", "startTime", "endTime", "origin", "destination", "distance", "vehicle", "status", "startOdometer", "endOdometer", "updatedAt"],
-  EXPENSES: ["id", "date", "time", "category", "amount", "currency", "method", "type", "notes", "odometer", "volume", "tripId", "updatedAt"],
-  VISITS: ["id", "client", "date", "status", "inboundTripId", "outboundTripId", "updatedAt"],
+  TRIPS: ["id", "date", "startTime", "endTime", "origin", "destination", "distance", "vehicle", "status", "startOdometer", "endOdometer", "updatedAt", "_deleted"],
+  EXPENSES: ["id", "date", "time", "category", "amount", "currency", "method", "type", "notes", "odometer", "volume", "tripId", "updatedAt", "_deleted"],
+  VISITS: ["id", "client", "date", "status", "inboundTripId", "outboundTripId", "updatedAt", "_deleted"],
   ODOMETERS: ["id", "value", "updatedAt"],
   CONFIGS: ["id", "tollPrice", "fuelPrice", "fuelPriceAC", "fuelPriceDC", "kmValue", "currency", "updatedAt"],
-  APP_STATE: ["key", "value", "updatedAt"] // Nueva tabla para estado de viaje
+  APP_STATE: ["key", "value", "updatedAt"]
 };
 
+// Nombres de las pestañas
 const SHEET_NAMES = {
-  TRIPS: "Trips", EXPENSES: "Expenses", VISITS: "Visits", 
-  ODOMETERS: "Odometers", CONFIGS: "Configs", APP_STATE: "AppState"
+  TRIPS: "Trips",
+  EXPENSES: "Expenses",
+  VISITS: "Visits",
+  ODOMETERS: "Odometers",
+  CONFIGS: "Configs",
+  APP_STATE: "AppState"
 };
 
 function doPost(e) {
+  // Lock para evitar colisiones entre dispositivos
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Servidor ocupado" })).setMimeType(ContentService.MimeType.JSON);
+    return response("error", "Servidor ocupado, intenta en unos segundos.");
   }
 
   try {
-    const incomingData = JSON.parse(e.postData.contents);
+    const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // === COMANDO ESPECIAL: RESET TOTAL ===
+    if (data.command === "RESET_ALL") {
+      const sheets = ss.getSheets();
+      sheets.forEach(sheet => {
+        // Limpiamos todas las hojas gestionadas
+        if (Object.values(SHEET_NAMES).includes(sheet.getName())) {
+             sheet.clear();
+        }
+      });
+      return response("success", "Base de datos en la nube eliminada completamente.");
+    }
+
+    // === SINCRONIZACIÓN ESTÁNDAR ===
     
-    // 1. PROCESO DE FUSIÓN (Tablas principales)
-    syncTable(ss, SHEET_NAMES.TRIPS, incomingData.trips, SCHEMA.TRIPS);
-    syncTable(ss, SHEET_NAMES.EXPENSES, incomingData.expenses, SCHEMA.EXPENSES);
+    // 1. Viajes
+    syncTable(ss, SHEET_NAMES.TRIPS, data.trips, SCHEMA.TRIPS);
     
-    // Visitas
-    const visitsFlat = (incomingData.visits || []).map(v => ({
-      id: v.id, client: v.client, date: v.date, status: v.status,
-      inboundTripId: v.inboundTrip ? v.inboundTrip.id : "",
-      outboundTripId: v.outboundTrip ? v.outboundTrip.id : "",
-      updatedAt: v.updatedAt
+    // 2. Gastos
+    syncTable(ss, SHEET_NAMES.EXPENSES, data.expenses, SCHEMA.EXPENSES);
+    
+    // 3. Visitas (Aplanamos IDs)
+    const visitsFlat = (data.visits || []).map(v => ({
+      ...v,
+      inboundTripId: v.inboundTrip ? v.inboundTrip.id : (v.inboundTripId || ""),
+      outboundTripId: v.outboundTrip ? v.outboundTrip.id : (v.outboundTripId || "")
     }));
     syncTable(ss, SHEET_NAMES.VISITS, visitsFlat, SCHEMA.VISITS);
 
-    // Odómetros y Configs
-    if(incomingData.vehicleOdometers) {
-       const odoList = Object.entries(incomingData.vehicleOdometers).map(([k,v]) => ({id:k, value:v, updatedAt: new Date().toISOString()}));
+    // 4. Odómetros
+    if(data.vehicleOdometers) {
+       const odoList = Object.entries(data.vehicleOdometers).map(([k,v]) => ({id:k, value:v, updatedAt: new Date().toISOString()}));
        syncTable(ss, SHEET_NAMES.ODOMETERS, odoList, SCHEMA.ODOMETERS);
     }
-    if(incomingData.vehicleConfigs) {
-       const cfgList = Object.entries(incomingData.vehicleConfigs).map(([k,v]) => ({...v, id:k, updatedAt: new Date().toISOString()}));
+
+    // 5. Configuraciones
+    if(data.vehicleConfigs) {
+       const cfgList = Object.entries(data.vehicleConfigs).map(([k,v]) => ({...v, id:k, updatedAt: new Date().toISOString()}));
        syncTable(ss, SHEET_NAMES.CONFIGS, cfgList, SCHEMA.CONFIGS);
     }
-
-    // --- NUEVO: GUARDAR ESTADO DE VIAJE ACTIVO ---
-    if (incomingData.currentTripState) {
-        // Guardamos metadatos clave para saber si hay un viaje activo
+    
+    // 6. Estado de la App
+    if (data.currentTripState) {
         const stateList = [
-            { key: "lastLocation", value: incomingData.lastLocation, updatedAt: new Date().toISOString() },
-            { key: "tripStatus", value: incomingData.currentTripState.appState, updatedAt: new Date().toISOString() },
-            { key: "tripStartTime", value: incomingData.currentTripState.currentTrip.startTime, updatedAt: new Date().toISOString() },
-            { key: "tripOrigin", value: incomingData.currentTripState.currentTrip.origin, updatedAt: new Date().toISOString() },
-            { key: "tripVehicle", value: incomingData.currentTripState.currentTrip.vehicle, updatedAt: new Date().toISOString() },
-            { key: "tripStartOdo", value: incomingData.currentTripState.currentTrip.startOdometer, updatedAt: new Date().toISOString() }
+            { key: "lastLocation", value: data.lastLocation, updatedAt: new Date().toISOString() },
+            { key: "tripStatus", value: data.currentTripState.appState, updatedAt: new Date().toISOString() },
+            { key: "tripStartTime", value: data.currentTripState.currentTrip.startTime, updatedAt: new Date().toISOString() },
+            { key: "tripOrigin", value: data.currentTripState.currentTrip.origin, updatedAt: new Date().toISOString() },
+            { key: "tripVehicle", value: data.currentTripState.currentTrip.vehicle, updatedAt: new Date().toISOString() },
+            { key: "tripStartOdo", value: data.currentTripState.currentTrip.startOdometer, updatedAt: new Date().toISOString() }
         ];
         syncTable(ss, SHEET_NAMES.APP_STATE, stateList, SCHEMA.APP_STATE);
     }
 
-    // 2. PREPARAR RESPUESTA
+    // === PREPARAR RESPUESTA (SYNC BIDIRECCIONAL) ===
     const responseData = {
       trips: readTable(ss, SHEET_NAMES.TRIPS, SCHEMA.TRIPS),
       expenses: readTable(ss, SHEET_NAMES.EXPENSES, SCHEMA.EXPENSES),
-      visits: reconstructVisits(ss, SHEET_NAMES.VISITS, SCHEMA.VISITS),
+      visits: readTable(ss, SHEET_NAMES.VISITS, SCHEMA.VISITS), // Visitas planas con IDs
       vehicleOdometers: readSimplePair(ss, SHEET_NAMES.ODOMETERS),
       vehicleConfigs: readConfigs(ss, SHEET_NAMES.CONFIGS, SCHEMA.CONFIGS),
-      appStateData: readSimplePair(ss, SHEET_NAMES.APP_STATE, "key") // Devolvemos el estado
+      appStateData: readSimplePair(ss, SHEET_NAMES.APP_STATE, "key")
     };
 
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", data: responseData }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return response("success", "Sincronizado correctamente", responseData);
 
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return response("error", error.toString());
   } finally {
     lock.releaseLock();
   }
 }
 
-// ... (Resto de funciones auxiliares syncTable, readTable, etc. se mantienen igual que en la v3.0.0)
+// === ALGORITMO DE FUSIÓN (LAST WRITE WINS) ===
 function syncTable(ss, sheetName, incomingItems, headers) {
   if (!incomingItems || incomingItems.length === 0) return;
+  
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) { sheet = ss.insertSheet(sheetName); sheet.appendRow(headers); }
+  
   const dataRange = sheet.getDataRange();
   const values = dataRange.getValues();
-  const headersRow = values[0];
-  const storedData = values.slice(1);
+  
+  // Mapa de IDs existentes en la nube: ID -> Fila
   let dbMap = new Map();
-  storedData.forEach((row, idx) => {
-    let item = {};
-    headersRow.forEach((h, i) => item[h] = row[i]);
-    // Usamos el primer campo como ID por defecto, a menos que sea APP_STATE
-    const idKey = headers[0]; 
-    dbMap.set(String(item[idKey]), { row: idx + 2, item: item });
-  });
+  if (values.length > 1) {
+      const storedData = values.slice(1);
+      storedData.forEach((row, idx) => {
+          // Asumimos siempre que la columna 0 es el ID único
+          dbMap.set(String(row[0]), idx + 2); // +2 por header y base 1
+      });
+  }
 
-  incomingItems.forEach(newItem => {
-    const idKey = headers[0];
-    const strId = String(newItem[idKey]);
-    const existing = dbMap.get(strId);
-    let shouldWrite = false;
+  // Indices de columnas clave
+  const dateIdx = headers.indexOf("updatedAt");
+
+  incomingItems.forEach(item => {
+    const strId = String(item[headers[0]]); // ID del item entrante
+    
     let writeRow = null;
+    let shouldWrite = true; // Por defecto escribimos (si es nuevo)
 
-    if (!existing) {
-      shouldWrite = true;
-    } else {
-      const cloudDate = new Date(existing.item.updatedAt || 0).getTime();
-      const localDate = new Date(newItem.updatedAt || 0).getTime();
-      if (localDate > cloudDate) { shouldWrite = true; writeRow = existing.row; }
+    if (dbMap.has(strId)) {
+        const rowNum = dbMap.get(strId);
+        
+        // Si existe, comparamos fechas para ver cuál es más reciente
+        if (dateIdx > -1) {
+            const existingDateStr = sheet.getRange(rowNum, dateIdx + 1).getValue();
+            const existingDate = new Date(existingDateStr || 0).getTime();
+            const incomingDate = new Date(item.updatedAt || 0).getTime();
+            
+            // Si la nube tiene un dato más nuevo (fecha mayor), NO sobrescribimos
+            if (incomingDate <= existingDate) {
+                shouldWrite = false;
+            }
+        }
+        
+        if (shouldWrite) writeRow = rowNum;
     }
 
     if (shouldWrite) {
-      const rowArray = headers.map(h => { let val = newItem[h]; return (val === undefined || val === null) ? "" : val; });
-      if (writeRow) { sheet.getRange(writeRow, 1, 1, headers.length).setValues([rowArray]); } 
-      else { sheet.appendRow(rowArray); }
+        // Mapeamos el objeto al orden de las columnas
+        const rowArray = headers.map(h => {
+             let val = item[h];
+             return (val === undefined || val === null) ? "" : val;
+        });
+
+        if (writeRow) {
+            // Actualizar fila existente
+            sheet.getRange(writeRow, 1, 1, headers.length).setValues([rowArray]);
+        } else {
+            // Insertar nueva fila
+            sheet.appendRow(rowArray);
+        }
     }
   });
 }
 
+// === LECTURA DE DATOS ===
 function readTable(ss, sheetName, headers) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() < 2) return [];
   const raw = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
-  return raw.map(row => { let obj = {}; headers.forEach((h, i) => obj[h] = row[i]); return obj; });
+  return raw.map(row => {
+      let obj = {}; 
+      headers.forEach((h, i) => obj[h] = row[i]); 
+      return obj; 
+  });
 }
 
-function readSimplePair(ss, sheetName, keyName = "id") {
-  const list = readTable(ss, sheetName, [keyName, "value"]);
-  let obj = {};
-  list.forEach(i => obj[i[keyName]] = i.value);
-  return obj;
+function readSimplePair(ss, sheetName, keyName="id") {
+    const list = readTable(ss, sheetName, [keyName, "value"]);
+    let obj = {}; 
+    list.forEach(i => obj[i[keyName]] = i.value); 
+    return obj;
 }
 
 function readConfigs(ss, sheetName, headers) {
-  const list = readTable(ss, sheetName, headers);
-  let obj = {};
-  list.forEach(i => { const id = i.id; delete i.id; obj[id] = i; });
-  return obj;
+    const list = readTable(ss, sheetName, headers);
+    let obj = {}; 
+    list.forEach(i => { const id = i.id; delete i.id; obj[id] = i; }); 
+    return obj;
 }
 
-function reconstructVisits(ss, sheetName, headers) { return readTable(ss, sheetName, headers); }
+function response(status, msg, data=null) {
+    return ContentService.createTextOutput(JSON.stringify({ 
+      status: status, 
+      message: msg, 
+      data: data 
+    })).setMimeType(ContentService.MimeType.JSON);
+}

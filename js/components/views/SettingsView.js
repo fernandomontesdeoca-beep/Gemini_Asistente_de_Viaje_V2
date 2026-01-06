@@ -8,8 +8,9 @@ window.SettingsView = ({
     updateVehicleConfig, setShowSaveConfirmation, 
     setAppState, showSaveConfirmation,
     handleExportData, setShowDataImportModal,
-    // Nuevas props para sincronización
-    googleScriptUrl, setGoogleScriptUrl, handleCloudSync, isSyncing
+    // Nuevas props
+    googleScriptUrl, setGoogleScriptUrl, handleCloudSync, isSyncing,
+    onResetAll // Prop para borrar todo
 }) => {
     return (
         <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50 p-6">
@@ -139,6 +140,16 @@ window.SettingsView = ({
                             <span className="text-xs font-bold text-slate-600 group-hover:text-rose-600">Restaurar</span>
                         </button>
                     </div>
+                </div>
+                
+                {/* SECCIÓN 4: ZONA DE PELIGRO (RESET) */}
+                <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 shadow-sm mt-4">
+                     <h4 className="text-xs font-bold text-rose-600 uppercase mb-3 flex items-center">
+                        <Icon name="AlertTriangle" size={14} className="mr-2"/> Zona de Peligro
+                    </h4>
+                    <button onClick={onResetAll} className="w-full py-3 bg-white border border-rose-200 text-rose-600 font-bold rounded-xl text-sm hover:bg-rose-600 hover:text-white transition-all">
+                        BORRAR TODO (Reset de Fábrica)
+                    </button>
                 </div>
 
                 <div className="text-center pt-4">

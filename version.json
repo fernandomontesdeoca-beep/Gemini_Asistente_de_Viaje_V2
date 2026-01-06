@@ -1,6 +1,6 @@
 {
-  "version": "3.2.0",
-  "build": "20250106",
+  "version": "3.3.0",
+  "build": "20260106",
   "priority": "high",
-  "description": "Fix ghost cards and enable auto-sync on key events"
+  "description": "Critical Fix: Ghost cards (Soft Delete), Robust IDs & Hard Reset"
 }
