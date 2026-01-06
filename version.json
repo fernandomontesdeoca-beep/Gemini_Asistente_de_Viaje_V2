@@ -1,5 +1,5 @@
 {
-  "version": "2.1.8",
+  "version": "2.1.9",
   "build": "20250106",
   "priority": "high",
   "description": "Refactorización modular para mejor mantenimiento"
