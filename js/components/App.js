@@ -106,23 +106,19 @@ const App = () => {
         }
     }, [appState]);
 
-    const handleAppUpdateConfirm = () => {
-        // 1. Borrar todas las cachés para asegurar limpieza
+    const handleAppUpdateConfirm = async () => {
+        // 1. Borrar todas las cachés (Esperar a que termine)
         if ('caches' in window) {
-            caches.keys().then((names) => {
-                names.forEach((name) => {
-                    caches.delete(name);
-                });
-            });
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
         }
-        // 2. Desregistrar Service Workers
+        
+        // 2. Desregistrar Service Workers (Esperar a que termine)
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then((registrations) => {
-                registrations.forEach((registration) => {
-                    registration.unregister();
-                });
-            });
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(r => r.unregister()));
         }
+        
         // 3. Forzar recarga desde el servidor
         window.location.reload(true);
     };

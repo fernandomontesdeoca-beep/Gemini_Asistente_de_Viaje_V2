@@ -119,17 +119,18 @@ const DestinationInputModal = ({ isOpen, onClose, onConfirm, title, placeholder,
     return (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200">
-                {/* CABECERA CON TÍTULO Y BOTÓN DE CERRAR */}
-                <div className="flex justify-between items-center mb-6">
+                {/* CABECERA: Título y Botón Cerrar */}
+                <div className="flex justify-between items-start mb-6">
                     <div className="flex items-center text-blue-600">
                         <Icon name="MapPin" size={24} className="mr-2"/>
                         <h3 className="text-xl font-bold text-slate-800">{title}</h3>
                     </div>
+                    {/* Botón X para cancelar */}
                     <button 
                         onClick={onClose} 
-                        className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
+                        className="p-2 -mr-2 -mt-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
                     >
-                        <Icon name="X" size={20} className="text-slate-500"/>
+                        <Icon name="X" size={24}/>
                     </button>
                 </div>
 
