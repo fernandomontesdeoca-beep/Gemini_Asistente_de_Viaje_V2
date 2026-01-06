@@ -843,7 +843,7 @@ const App = () => {
         </div>
     );
 };
-}
+
 
 {
 type: uploaded file
