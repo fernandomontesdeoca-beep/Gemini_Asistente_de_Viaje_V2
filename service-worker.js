@@ -1,9 +1,9 @@
-const CACHE_NAME = 'trip-assistant-v2.4.0'; // ACTUALIZADO A 2.4.0
+const CACHE_NAME = 'trip-assistant-v2.5.0'; // ACTUALIZADO A 2.5.0
 const IS_PRODUCTION = true;
 
 // Archivos LOCALES requeridos para que la app funcione offline.
 // NOTA: Hemos eliminado las librerías externas (CDN) de esta lista para evitar errores.
-const ASSETS_TO_CACHE = [
+cconst ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
@@ -11,9 +11,18 @@ const ASSETS_TO_CACHE = [
   './js/config.js',
   './js/db.js',
   './js/components/Icons.js',
-  './js/components/Modals.js',
   './js/components/App.js',
-  './js/main.js'
+  './js/main.js',
+  // Nuevos archivos modulares
+  './js/components/modals/SystemModals.js',
+  './js/components/modals/TransactionModals.js',
+  './js/components/modals/TripModals.js',
+  './js/components/views/HomeView.js',
+  './js/components/views/StartingView.js',
+  './js/components/views/ActiveTripView.js',
+  './js/components/views/EndingTripView.js',
+  './js/components/views/SettingsView.js',
+  './js/components/views/HistoryView.js'
 ];
 
 // Instalación: Guardar archivos locales en caché

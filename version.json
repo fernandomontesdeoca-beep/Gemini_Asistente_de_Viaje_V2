@@ -1,5 +1,5 @@
 {
-  "version": "2.4.0",
+  "version": "2.5.0",
   "build": "20250106",
   "priority": "high",
   "description": "Add Trip Persistence and Resume Logic"
