@@ -1,6 +1,6 @@
 {
-  "version": "2.2.2",
+  "version": "2.3.0",
   "build": "20250106",
   "priority": "high",
-  "description": "Fix Service Worker CORS issues"
+  "description": "Add Trip Persistence and Resume Logic"
 }

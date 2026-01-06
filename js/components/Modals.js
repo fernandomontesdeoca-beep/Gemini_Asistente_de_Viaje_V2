@@ -1,6 +1,9 @@
 const { useState, useEffect } = React;
 
-// Asignar todos los componentes a window
+// ==========================================
+// COMPONENTES DE MODALES
+// ==========================================
+
 window.UpdatePromptModal = ({ isOpen, onClose, onConfirm, changes }) => {
     if (!isOpen) return null;
     return (
@@ -13,7 +16,6 @@ window.UpdatePromptModal = ({ isOpen, onClose, onConfirm, changes }) => {
                     <h3 className="text-xl font-bold text-slate-800 mb-2">Tarifas Actualizadas</h3>
                     <p className="text-slate-500 mb-4 text-xs">Los valores oficiales en la web son distintos a tu configuración.</p>
                     
-                    {/* TABLA DE COMPARACIÓN */}
                     <div className="bg-slate-50 rounded-xl p-3 w-full mb-6">
                         <div className="grid grid-cols-3 gap-1 text-xs font-bold text-slate-400 border-b border-slate-200 pb-2 mb-2 uppercase tracking-wider">
                             <span className="text-left">Concepto</span>
@@ -258,9 +260,6 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                     <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><Icon name="X" size={20} className="text-slate-500"/></button>
                 </div>
                 <div className="space-y-4 overflow-y-auto flex-1 pr-2 scrollbar-hide">
-                    {/* ... Resto del contenido del modal igual ... */}
-                    {/* Para brevedad, asumo que el contenido interno es el mismo, solo que ahora envuelto en window.TripEditModal */}
-                    {/* Pega el resto del contenido del TripEditModal aquí si es necesario, o usa la estructura previa */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Fecha</label>
@@ -276,6 +275,7 @@ window.TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
                             </div>
                         </div>
                     </div>
+                    
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl">
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Odo. Inicio</label>
@@ -507,6 +507,43 @@ window.UpdateAppModal = ({ isOpen, onClose, onConfirm }) => {
                     <div className="w-full flex gap-3">
                         <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200">Más tarde</button>
                         <button onClick={onConfirm} className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200">Actualizar Ahora</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ==========================================
+// NUEVO COMPONENTE: ResumeTripModal
+// ==========================================
+window.ResumeTripModal = ({ isOpen, onResume, onDiscard }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+                <div className="flex flex-col items-center text-center">
+                    <div className="bg-amber-100 p-4 rounded-full mb-4">
+                        <Icon name="AlertTriangle" size={32} className="text-amber-600"/>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Viaje Detectado</h3>
+                    <p className="text-slate-500 mb-6 text-sm">
+                        Se cerró la aplicación con un viaje en curso. <br/>
+                        ¿Deseas retomarlo donde lo dejaste?
+                    </p>
+                    <div className="w-full flex gap-3">
+                        <button 
+                            onClick={onDiscard} 
+                            className="flex-1 py-3 rounded-xl font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
+                        >
+                            Descartar
+                        </button>
+                        <button 
+                            onClick={onResume} 
+                            className="flex-1 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
+                        >
+                            Continuar
+                        </button>
                     </div>
                 </div>
             </div>

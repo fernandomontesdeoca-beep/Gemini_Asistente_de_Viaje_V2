@@ -1,7 +1,8 @@
 const { useState, useEffect } = React;
 
-// Referencias locales a componentes globales para simplificar el JSX
+// Referencias locales a componentes globales
 const UpdateAppModal = window.UpdateAppModal;
+const ResumeTripModal = window.ResumeTripModal; // <--- NUEVO
 const ExpenseModal = window.ExpenseModal;
 const CategorySelector = window.CategorySelector;
 const ChargeTypeModal = window.ChargeTypeModal;
@@ -29,6 +30,8 @@ window.App = () => {
     // --- ESTADO ---
     const [rateChanges, setRateChanges] = useState([]);
     const [showUpdateAppModal, setShowUpdateAppModal] = useState(false);
+    const [showResumeModal, setShowResumeModal] = useState(false); // <--- NUEVO
+    const [pendingResumeData, setPendingResumeData] = useState(null); // <--- NUEVO
     
     const [appState, setAppState] = useState('IDLE');
     const [defaultVehicleId, setDefaultVehicleId] = useState('PERSONAL');
@@ -69,7 +72,7 @@ window.App = () => {
 
     // Configs
     const [vehicleConfigs, setVehicleConfigs] = useState({
-        PERSONAL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '15.00', currency: 'UYU' },
+        PERSONAL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '14.24', currency: 'UYU' },
         COMPANY_FUEL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '12.00', currency: 'UYU' },
         COMPANY_ELECTRIC: { tollPrice: '162.00', fuelPriceAC: '9.50', fuelPriceDC: '10.80', kmValue: '4.00', currency: 'UYU' }, 
         OTHER: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '20.00', currency: 'UYU' }
@@ -115,7 +118,6 @@ window.App = () => {
                 if (response.ok) {
                     const data = await response.json();
                     if (data.version !== APP_VERSION) {
-                        console.log(`Nueva versión detectada: ${data.version} (Actual: ${APP_VERSION})`);
                         setShowUpdateAppModal(true);
                     }
                 }
@@ -145,13 +147,14 @@ window.App = () => {
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [savedTrips, savedExpenses, savedVisits, savedOdometers, savedConfigs, savedLocation] = await Promise.all([
+                const [savedTrips, savedExpenses, savedVisits, savedOdometers, savedConfigs, savedLocation, savedState] = await Promise.all([
                     window.dbHelper.get('trips'),
                     window.dbHelper.get('expenses'),
                     window.dbHelper.get('visits'),
                     window.dbHelper.get('odometers'),
                     window.dbHelper.get('configs'),
-                    window.dbHelper.get('lastLocation')
+                    window.dbHelper.get('lastLocation'),
+                    window.dbHelper.get('app_state_persist') // <--- CARGAR ESTADO PERSISTENTE
                 ]);
 
                 if (savedTrips) setTrips(savedTrips);
@@ -162,6 +165,7 @@ window.App = () => {
                 
                 if (savedConfigs) {
                     setVehicleConfigs(savedConfigs);
+                    // (Lógica de comparación de tarifas se mantiene igual)
                     const detectedChanges = [];
                     const myRef = savedConfigs['PERSONAL']; 
                     if (myRef) {
@@ -186,6 +190,13 @@ window.App = () => {
                         setShowUpdatePrompt(true);
                     }
                 }
+
+                // --- LÓGICA DE RECUPERACIÓN DE VIAJE ---
+                if (savedState && savedState.appState === 'ACTIVE') {
+                     setPendingResumeData(savedState);
+                     setShowResumeModal(true);
+                }
+
                 setDataLoaded(true);
             } catch (error) {
                 console.error("Error loading DB", error);
@@ -195,6 +206,7 @@ window.App = () => {
         loadData();
     }, []);
 
+    // Guardado general de datos
     useEffect(() => { if(dataLoaded) window.dbHelper.set('trips', trips); }, [trips, dataLoaded]);
     useEffect(() => { if(dataLoaded) window.dbHelper.set('expenses', expenses); }, [expenses, dataLoaded]);
     useEffect(() => { if(dataLoaded) window.dbHelper.set('visits', visits); }, [visits, dataLoaded]);
@@ -202,16 +214,62 @@ window.App = () => {
     useEffect(() => { if(dataLoaded) window.dbHelper.set('configs', vehicleConfigs); }, [vehicleConfigs, dataLoaded]);
     useEffect(() => { if(dataLoaded) window.dbHelper.set('lastLocation', lastLocation); }, [lastLocation, dataLoaded]);
 
-    // --- TIMER ---
+    // --- NUEVO: GUARDADO DE ESTADO EN TIEMPO REAL ---
+    useEffect(() => {
+        if (dataLoaded) {
+            const persistData = {
+                appState,
+                currentTrip
+            };
+            window.dbHelper.set('app_state_persist', persistData);
+        }
+    }, [appState, currentTrip, dataLoaded]);
+
+    // --- TIMER MEJORADO (Resistente a recargas) ---
     useEffect(() => {
         let interval;
-        if (appState === 'ACTIVE') {
-            interval = setInterval(() => setElapsedTime(prev => prev + 1), 1000);
+        if (appState === 'ACTIVE' && currentTrip.startTime) {
+            // Calcular tiempo transcurrido real basado en la fecha de inicio original
+            const startTimestamp = new Date(currentTrip.startTime).getTime();
+            
+            // Actualización inicial inmediata
+            setElapsedTime(Math.floor((Date.now() - startTimestamp) / 1000));
+
+            interval = setInterval(() => {
+                const now = Date.now();
+                const diff = Math.floor((now - startTimestamp) / 1000);
+                setElapsedTime(diff > 0 ? diff : 0);
+            }, 1000);
         } else {
             setElapsedTime(0);
         }
         return () => clearInterval(interval);
-    }, [appState]);
+    }, [appState, currentTrip.startTime]); // Dependencia clave: startTime
+
+    // --- HANDLERS PARA RESUMIR VIAJE ---
+    const confirmResume = () => {
+        if (pendingResumeData) {
+            // Restaurar estado de la app
+            setAppState(pendingResumeData.appState);
+            
+            // Restaurar objeto del viaje (convirtiendo el string de fecha a objeto Date)
+            const restoredTrip = { ...pendingResumeData.currentTrip };
+            if (restoredTrip.startTime) {
+                restoredTrip.startTime = new Date(restoredTrip.startTime);
+            }
+            setCurrentTrip(restoredTrip);
+        }
+        setShowResumeModal(false);
+        setPendingResumeData(null);
+    };
+
+    const discardResume = () => {
+        // Borrar datos persistentes
+        window.dbHelper.set('app_state_persist', null);
+        setShowResumeModal(false);
+        setPendingResumeData(null);
+        setAppState('IDLE');
+    };
 
     // --- LOGIC ---
     const handleUpdateRates = () => {
@@ -486,6 +544,8 @@ window.App = () => {
         setVehicleOdometers(prev => ({ ...prev, [currentTrip.vehicle]: endOdo }));
         setLastLocation(inputDestination);
         setAppState('IDLE');
+        // Limpiar persistencia al terminar
+        window.dbHelper.set('app_state_persist', null);
     };
 
     const handleLocationSelection = (loc) => {
@@ -577,6 +637,13 @@ window.App = () => {
                 isOpen={showUpdateAppModal}
                 onClose={() => setShowUpdateAppModal(false)}
                 onConfirm={handleAppUpdateConfirm}
+            />
+
+            {/* NUEVO: MODAL DE RECUPERACIÓN DE VIAJE */}
+            <ResumeTripModal
+                isOpen={showResumeModal}
+                onResume={confirmResume}
+                onDiscard={discardResume}
             />
 
             <ExpenseModal 
