@@ -1,5 +1,5 @@
-const CACHE_NAME = 'trip-assistant-v2.0.0'; // Versión actualizada
-const IS_PRODUCTION = true; // Cambiar a false si estás editando localmente
+const CACHE_NAME = 'trip-assistant-v2.1.0'; // ACTUALIZADO A 2.1.0
+const IS_PRODUCTION = true; 
 
 // Archivos requeridos para que la app funcione offline
 const ASSETS_TO_CACHE = [
