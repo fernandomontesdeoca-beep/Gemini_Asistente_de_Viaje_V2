@@ -1,6 +1,6 @@
 {
-  "version": "2.5.0",
+  "version": "2.5.1",
   "build": "20250106",
   "priority": "high",
-  "description": "Add Trip Persistence and Resume Logic"
+  "description": "Critical Fix: Added missing function and fixed SW syntax"
 }

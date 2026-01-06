@@ -1,9 +1,8 @@
-const CACHE_NAME = 'trip-assistant-v2.5.0'; // ACTUALIZADO A 2.5.0
+const CACHE_NAME = 'trip-assistant-v2.5.1'; // ACTUALIZADO A 2.5.1
 const IS_PRODUCTION = true;
 
 // Archivos LOCALES requeridos para que la app funcione offline.
-// NOTA: Hemos eliminado las librerías externas (CDN) de esta lista para evitar errores.
-cconst ASSETS_TO_CACHE = [
+const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
@@ -25,7 +24,6 @@ cconst ASSETS_TO_CACHE = [
   './js/components/views/HistoryView.js'
 ];
 
-// Instalación: Guardar archivos locales en caché
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -33,10 +31,9 @@ self.addEventListener('install', (event) => {
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
-  self.skipWaiting(); // Forzar activación inmediata
+  self.skipWaiting();
 });
 
-// Activación: Limpiar cachés viejas
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -53,17 +50,14 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// Intercepción de peticiones
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
-      // Si está en caché, devolverlo
       if (response) {
         return response;
       }
-      // Si no, ir a la red
       return fetch(event.request).catch(() => {
-        // Fallback offline (opcional)
+        // Fallback offline
       });
     })
   );
