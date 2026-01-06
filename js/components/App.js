@@ -242,21 +242,21 @@ const App = () => {
                 notes: expenseToEdit.notes || '',
                 odometer: expenseToEdit.odometer || currentOdo,
                 volume: expenseToEdit.volume || '',
-                unitPrice: null // No recalculamos en edición para no alterar datos históricos
+                unitPrice: null 
             });
         } else {
             const activeConfig = getActiveConfig();
             const isCompanyVehicle = currentVId.includes('COMPANY');
+            // Inicializamos unitPrice en null
             let defaults = { amount: '', currency: 'UYU', method: 'CREDITO', type: isCompanyVehicle ? 'Empresa' : 'Empresa', unitPrice: null };
 
             if (category === 'Peaje') {
                 defaults = { amount: formatMoney(activeConfig.tollPrice), currency: activeConfig.currency, method: 'DEBITO', type: 'Personal', unitPrice: null };
             } else if (['Carga Combustible', 'Combustible'].includes(category)) {
-                // Aquí capturamos el precio del litro para el cálculo automático
+                // CORRECCIÓN: Aquí pasamos el precio del combustible (fuelPrice) como unitPrice
                 defaults = { amount: '', currency: activeConfig.currency, method: 'CREDITO', type: 'Personal', unitPrice: activeConfig.fuelPrice };
             } else if (category === 'Carga Eléctrica') {
-                // Para eléctrica, el precio ya viene en amountOverride si se eligió AC/DC, o lo sacamos de config
-                const price = amountOverride || activeConfig.fuelPriceAC; // Default a AC si no se especifica
+                const price = amountOverride || activeConfig.fuelPriceAC; 
                 defaults = { amount: '', currency: activeConfig.currency, method: 'CREDITO', type: 'Personal', unitPrice: price };
             }
             
@@ -266,7 +266,7 @@ const App = () => {
                 isOpen: true,
                 id: null,
                 category,
-                amount: defaults.amount, // Dejamos vacío el monto para que se calcule
+                amount: defaults.amount,
                 currency: defaults.currency,
                 currencyType: isStandardCurrency ? defaults.currency : 'Otro',
                 method: defaults.method,
@@ -274,7 +274,7 @@ const App = () => {
                 notes: '',
                 odometer: currentOdo,
                 volume: '',
-                unitPrice: defaults.unitPrice // Guardamos el precio unitario
+                unitPrice: defaults.unitPrice // IMPORTANTE: Pasamos el precio al estado del modal
             });
         }
         setShowExpenseCategorySelector(false);

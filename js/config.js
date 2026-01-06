@@ -3,7 +3,7 @@
 // ==========================================
 
 // --- VERSIÓN DE LA APP ---
-const APP_VERSION = "2.1.4"; // Debe coincidir con version.json
+const APP_VERSION = "2.1.5"; // Debe coincidir con version.json
 
 // --- UI CONFIG ---
 const LOCATIONS_CONFIG = {
