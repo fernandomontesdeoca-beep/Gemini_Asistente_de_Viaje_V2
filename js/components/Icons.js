@@ -1,7 +1,7 @@
 // ==========================================
-// SISTEMA DE ICONOS INTEGRADO
+// SISTEMA DE ICONOS INTEGRADO (GLOBAL)
 // ==========================================
-const ICONS = {
+window.ICONS = {
     Play: <polygon points="5 3 19 12 5 21 5 3" />,
     MapPin: <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></>,
     DollarSign: <><line x1="12" x2="12" y1="2" y2="22" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></>,
@@ -35,8 +35,8 @@ const ICONS = {
     Home: <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
 };
 
-const Icon = ({ name, size = 24, className = "" }) => {
-    if (!ICONS[name]) return null;
+window.Icon = ({ name, size = 24, className = "" }) => {
+    if (!window.ICONS[name]) return null;
     return (
         <svg 
             xmlns="http://www.w3.org/2000/svg" 
@@ -50,7 +50,7 @@ const Icon = ({ name, size = 24, className = "" }) => {
             strokeLinejoin="round" 
             className={className}
         >
-            {ICONS[name]}
+            {window.ICONS[name]}
         </svg>
     );
 };

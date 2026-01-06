@@ -1,6 +1,6 @@
 const { useState, useEffect } = React;
 
-const App = () => {
+window.App = () => {
     // --- ESTADO ---
     const [rateChanges, setRateChanges] = useState([]);
     const [showUpdateAppModal, setShowUpdateAppModal] = useState(false);

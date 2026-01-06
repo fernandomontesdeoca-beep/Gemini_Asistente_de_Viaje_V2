@@ -5,7 +5,8 @@ const DB_NAME = 'TripAssistantDB';
 const STORE_NAME = 'app_data';
 const DB_VERSION = 1;
 
-const dbHelper = {
+// Asignamos a window para hacerlo global
+window.dbHelper = {
     init: () => {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -21,7 +22,7 @@ const dbHelper = {
     },
     get: async (key) => {
         try {
-            const db = await dbHelper.init();
+            const db = await window.dbHelper.init();
             return new Promise((resolve, reject) => {
                 const transaction = db.transaction([STORE_NAME], 'readonly');
                 const store = transaction.objectStore(STORE_NAME);
@@ -36,7 +37,7 @@ const dbHelper = {
     },
     set: async (key, value) => {
         try {
-            const db = await dbHelper.init();
+            const db = await window.dbHelper.init();
             return new Promise((resolve, reject) => {
                 const transaction = db.transaction([STORE_NAME], 'readwrite');
                 const store = transaction.objectStore(STORE_NAME);
