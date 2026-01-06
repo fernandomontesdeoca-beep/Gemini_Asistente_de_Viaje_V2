@@ -1,6 +1,6 @@
 {
-  "version": "3.1.1",
+  "version": "3.2.0",
   "build": "20250106",
   "priority": "high",
-  "description": "Refactorización Modular Completa y Sincronización"
+  "description": "Fix ghost cards and enable auto-sync on key events"
 }

@@ -172,25 +172,18 @@ window.App = () => {
         window.dbHelper.set('google_script_url', googleScriptUrl);
     }}, [trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, appState, currentTrip, googleScriptUrl, dataLoaded]);
 
-    // --- SYNC BIDIRECCIONAL INTELIGENTE ---
-    const handleCloudSync = async () => {
-        if (!googleScriptUrl) return;
+    // --- SYNC BIDIRECCIONAL INTELIGENTE (AUTO & MANUAL) ---
+    const handleCloudSync = async (silent = false) => {
+        if (!googleScriptUrl) {
+            if(!silent) alert("Configura la URL de Google Script primero.");
+            return;
+        }
+        
         setIsSyncing(true);
         try {
-            // Empaquetamos TODO para que el script lo guarde, incluyendo ESTADO DEL VIAJE
             const dataToSync = {
-                trips,
-                expenses,
-                visits,
-                vehicleOdometers,
-                vehicleConfigs,
-                lastLocation,
-                // Enviamos el estado actual para que se guarde en la nube
-                currentTripState: {
-                    appState,
-                    currentTrip,
-                    lastUpdated: new Date().toISOString()
-                }
+                trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation,
+                currentTripState: { appState, currentTrip, lastUpdated: new Date().toISOString() }
             };
             
             if (!window.GoogleSheetSync) throw new Error("Servicio de sincronización no cargado.");
@@ -200,43 +193,12 @@ window.App = () => {
             if (result.status === 'success' && result.data) {
                 const cloud = result.data;
                 
-                // 1. ACTUALIZAR DATOS MAESTROS
+                // Actualizar datos locales
                 if (cloud.trips) setTrips(cloud.trips);
                 if (cloud.expenses) setExpenses(cloud.expenses);
                 if (cloud.vehicleOdometers) setVehicleOdometers(cloud.vehicleOdometers);
                 if (cloud.vehicleConfigs) setVehicleConfigs(cloud.vehicleConfigs);
                 
-                // 2. ACTUALIZAR UBICACIÓN Y ESTADO DEL VIAJE (CRÍTICO)
-                if (cloud.appStateData) {
-                    const cloudState = cloud.appStateData; // Datos que vienen de la pestaña APP_STATE del Sheet
-                    
-                    // Si la nube tiene una ubicación más reciente o diferente, la adoptamos
-                    if (cloudState.lastLocation && cloudState.lastLocation !== lastLocation) {
-                        setLastLocation(cloudState.lastLocation);
-                    }
-
-                    // --- LÓGICA DE CONTINUIDAD DE VIAJE ---
-                    // Si la nube dice que hay un viaje activo y nosotros estamos en IDLE...
-                    if (cloudState.tripStatus === 'ACTIVE' && appState === 'IDLE') {
-                        const confirmContinue = window.confirm(
-                            `Se detectó un viaje activo en otro dispositivo desde: ${cloudState.tripOrigin}.\n\n¿Deseas continuar este viaje aquí?`
-                        );
-                        
-                        if (confirmContinue) {
-                            setAppState('ACTIVE');
-                            setCurrentTrip({
-                                ...currentTrip,
-                                startTime: new Date(cloudState.tripStartTime), // Importante: convertir string a Date
-                                origin: cloudState.tripOrigin,
-                                vehicle: cloudState.tripVehicle,
-                                startOdometer: parseInt(cloudState.tripStartOdo || 0),
-                                tripExpenses: [] // Los gastos anteriores ya deberían estar en 'expenses' si se sincronizaron
-                            });
-                        }
-                    }
-                }
-
-                // Reconstruir Visitas
                 if (cloud.visits && cloud.trips) {
                     const hydratedVisits = cloud.visits.map(v => ({
                         ...v,
@@ -246,13 +208,15 @@ window.App = () => {
                     setVisits(hydratedVisits);
                 }
 
-                alert("✅ Sincronización completa. Estado actualizado.");
+                if (!silent) alert("✅ Sincronización completa.");
+                // Si es silencioso, no mostramos alerta, solo un log
+                else console.log("Auto-sync completado.");
             } else {
-                alert("⚠️ " + (result.message || "Error en el servidor."));
+                if (!silent) alert("⚠️ " + (result.message || "Error en el servidor."));
             }
         } catch (error) {
             console.error(error);
-            alert("❌ Error de conexión: " + error.message);
+            if (!silent) alert("❌ Error de conexión: " + error.message);
         } finally {
             setIsSyncing(false);
         }
@@ -319,6 +283,8 @@ window.App = () => {
     const startTripProcess = (startOdo, destinationOverride = undefined) => {
         setCurrentTrip(prev => ({ ...prev, startTime: new Date(), origin: lastLocation, destination: destinationOverride !== undefined ? destinationOverride : inputDestination, startOdometer: startOdo }));
         setAppState('ACTIVE');
+        // Auto-sync al INICIAR viaje
+        handleCloudSync(true); 
     };
 
     const handleArrivePress = () => {
@@ -353,18 +319,34 @@ window.App = () => {
         if (newTrip.origin.toLowerCase().startsWith('cliente')) {
             setVisits(prev => {
                 const idx = prev.findIndex(v => v.client === newTrip.origin && v.status === 'OPEN');
-                if (idx !== -1) { const updated = [...prev]; updated[idx] = { ...updated[idx], outboundTrip: newTrip, status: 'COMPLETED', updatedAt: new Date().toISOString() }; return updated; }
+                if (idx !== -1) { 
+                    const updated = [...prev]; 
+                    updated[idx] = { ...updated[idx], outboundTrip: newTrip, status: 'COMPLETED', updatedAt: new Date().toISOString() }; 
+                    return updated; 
+                }
                 return prev;
             });
         }
         if (newTrip.destination.toLowerCase().startsWith('cliente')) {
-            setVisits(prev => [{ id: Date.now() + '_visit', client: newTrip.destination, date: newTrip.date, inboundTrip: newTrip, outboundTrip: null, status: 'OPEN', updatedAt: new Date().toISOString() }, ...prev]);
+            setVisits(prev => [{ 
+                id: Date.now() + '_visit', 
+                client: newTrip.destination, 
+                date: newTrip.date, 
+                inboundTrip: newTrip, 
+                outboundTrip: null, 
+                status: 'OPEN', 
+                updatedAt: new Date().toISOString() 
+            }, ...prev]);
         }
 
         setVehicleOdometers(prev => ({ ...prev, [currentTrip.vehicle]: endOdo }));
         setLastLocation(inputDestination);
         setAppState('IDLE');
         window.dbHelper.set('app_state_persist', null);
+        
+        // --- AUTO SYNC AL TERMINAR VIAJE ---
+        // Usamos setTimeout para dejar que el estado se asiente mínimamente antes de enviar
+        setTimeout(() => handleCloudSync(true), 500);
     };
 
     const updateDashboardOdometer = (newVal) => {
@@ -499,7 +481,7 @@ window.App = () => {
         }
     };
     
-    // --- EDIT HANDLERS ---
+    // --- EDIT HANDLERS (CORREGIDOS PARA BORRADO) ---
     const saveEditedTrip = (updatedTrip) => {
         const tripWithDate = { ...updatedTrip, updatedAt: new Date().toISOString() };
         setTrips(prev => prev.map(t => t.id === updatedTrip.id ? tripWithDate : t));
@@ -513,13 +495,24 @@ window.App = () => {
     };
 
     const deleteTrip = (tripId) => {
-        setTrips(prev => prev.filter(t => t.id !== tripId));
+        // Usamos String() para comparar seguramente IDs que pueden venir como números o texto
+        setTrips(prev => prev.filter(t => String(t.id) !== String(tripId)));
         setEditingTrip(null);
+        // Auto-sync al borrar
+        setTimeout(() => handleCloudSync(true), 500);
     };
     
     const deleteVisit = (visitId) => {
-        setVisits(prev => prev.filter(v => v.id !== visitId));
+        setVisits(prev => prev.filter(v => String(v.id) !== String(visitId)));
         setEditingVisit(null);
+        // Auto-sync al borrar
+        setTimeout(() => handleCloudSync(true), 500);
+    };
+
+    const handleExitHistory = () => {
+        setAppState('IDLE');
+        // Auto-sync al salir del historial (cubre cualquier edición hecha ahí)
+        handleCloudSync(true);
     };
 
     // --- RENDER ---
@@ -534,7 +527,10 @@ window.App = () => {
                 isOpen={expenseModalData.isOpen} 
                 onClose={(action) => {
                     if (action === 'DELETE') {
-                        if (expenseModalData.id) setExpenses(prev => prev.filter(e => e.id !== expenseModalData.id));
+                        if (expenseModalData.id) {
+                            setExpenses(prev => prev.filter(e => e.id !== expenseModalData.id));
+                            setTimeout(() => handleCloudSync(true), 500); // Sync al borrar gasto
+                        }
                         setExpenseModalData({...expenseModalData, isOpen: false});
                     } else setExpenseModalData({...expenseModalData, isOpen: false})
                 }} 
@@ -644,7 +640,6 @@ window.App = () => {
                     updateVehicleConfig={updateVehicleConfig} setShowSaveConfirmation={setShowSaveConfirmation}
                     setAppState={setAppState} showSaveConfirmation={showSaveConfirmation}
                     handleExportData={handleExportData} setShowDataImportModal={setShowDataImportModal}
-                    // Props nuevas para sync
                     googleScriptUrl={googleScriptUrl} setGoogleScriptUrl={setGoogleScriptUrl} 
                     handleCloudSync={handleCloudSync} isSyncing={isSyncing}
                 />
@@ -654,6 +649,7 @@ window.App = () => {
                 <HistoryView 
                     historyTab={historyTab} setHistoryTab={setHistoryTab} trips={trips} visits={visits} expenses={expenses}
                     setAppState={setAppState} setEditingTrip={setEditingTrip} setEditingVisit={setEditingVisit} openExpenseModal={openExpenseModalLogic}
+                    onExit={handleExitHistory} // Pasamos la nueva función de salida
                 />
             )}
         </div>
