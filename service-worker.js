@@ -1,16 +1,24 @@
-const CACHE_NAME = 'trip-assistant-v2.0.0';
-const IS_PRODUCTION = true; // Cambiar a false si estás editando localmente para ver cambios al instante
+const CACHE_NAME = 'trip-assistant-v2.0.0'; // Versión actualizada
+const IS_PRODUCTION = true; // Cambiar a false si estás editando localmente
 
 // Archivos requeridos para que la app funcione offline
 const ASSETS_TO_CACHE = [
-  './',                      // La raíz del sitio
-  './index.html',            // El archivo principal (si lo renombras en GitHub Pages)
-  './manifest.json',         // El manifiesto
+  './',
+  './index.html',
+  './manifest.json',
+  // Nuevos archivos CSS y JS locales
+  './css/styles.css',
+  './js/config.js',
+  './js/db.js',
+  './js/components/Icons.js',
+  './js/components/Modals.js',
+  './js/components/App.js',
+  './js/main.js',
+  // Librerías externas
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/react@18/umd/react.production.min.js',
   'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
   'https://unpkg.com/@babel/standalone/babel.min.js'
-  // Nota: Los iconos están integrados en el HTML, no necesitan caché externa
 ];
 
 // Instalación: Guardar archivos en caché
@@ -51,8 +59,7 @@ self.addEventListener('fetch', (event) => {
       }
       // Si no, ir a la red
       return fetch(event.request).catch(() => {
-        // Fallback para cuando no hay internet y no está en caché (opcional)
-        // Podrías retornar una página de "Offline" aquí si quisieras
+        // Fallback offline (opcional)
       });
     })
   );
