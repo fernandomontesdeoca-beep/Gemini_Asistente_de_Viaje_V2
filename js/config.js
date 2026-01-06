@@ -3,7 +3,7 @@
 // ==========================================
 
 // --- VERSIÓN DE LA APP ---
-const APP_VERSION = "2.1.1"; // Debe coincidir con version.json
+const APP_VERSION = "2.1.2"; // Debe coincidir con version.json
 
 // --- UI CONFIG ---
 const LOCATIONS_CONFIG = {
@@ -55,4 +55,5 @@ const getVehicleInfo = (id) => VEHICLE_TYPES.find(v => v.id === id) || VEHICLE_T
 
 const formatMoney = (amount) => {
      return Number(amount || 0).toFixed(2);
+
 };
