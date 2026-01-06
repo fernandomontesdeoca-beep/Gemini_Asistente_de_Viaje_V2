@@ -1,0 +1,8 @@
+Archivos de sistema y logs que no deben subirse
+
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+.vscode/
+.idea/
