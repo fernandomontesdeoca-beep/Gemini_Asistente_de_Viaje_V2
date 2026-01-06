@@ -1,5 +1,30 @@
 const { useState, useEffect } = React;
 
+// Referencias locales a componentes globales para simplificar el JSX
+const UpdateAppModal = window.UpdateAppModal;
+const ExpenseModal = window.ExpenseModal;
+const CategorySelector = window.CategorySelector;
+const ChargeTypeModal = window.ChargeTypeModal;
+const DestinationInputModal = window.DestinationInputModal;
+const ParkingAskModal = window.ParkingAskModal;
+const UpdatePromptModal = window.UpdatePromptModal;
+const TripEditModal = window.TripEditModal;
+const VisitEditModal = window.VisitEditModal;
+const Icon = window.Icon;
+
+// Referencias locales a constantes globales
+const LOCATIONS_PRESETS = window.LOCATIONS_PRESETS || [];
+const LOCATIONS_CONFIG = window.LOCATIONS_CONFIG || {};
+const VEHICLE_TYPES = window.VEHICLE_TYPES || [];
+const EXPENSE_CATEGORIES = window.EXPENSE_CATEGORIES || { FOOD: [], LODGING: [], TRIP: [], OTHER: [] };
+const PAYMENT_METHODS = window.PAYMENT_METHODS || [];
+const CURRENCIES = window.CURRENCIES || [];
+const EXPENSE_TYPES = window.EXPENSE_TYPES || [];
+const OFFICIAL_RATES = window.OFFICIAL_RATES || {};
+const getVehicleInfo = window.getVehicleInfo;
+const formatMoney = window.formatMoney;
+const APP_VERSION = window.APP_VERSION;
+
 window.App = () => {
     // --- ESTADO ---
     const [rateChanges, setRateChanges] = useState([]);
@@ -121,12 +146,12 @@ window.App = () => {
         const loadData = async () => {
             try {
                 const [savedTrips, savedExpenses, savedVisits, savedOdometers, savedConfigs, savedLocation] = await Promise.all([
-                    dbHelper.get('trips'),
-                    dbHelper.get('expenses'),
-                    dbHelper.get('visits'),
-                    dbHelper.get('odometers'),
-                    dbHelper.get('configs'),
-                    dbHelper.get('lastLocation')
+                    window.dbHelper.get('trips'),
+                    window.dbHelper.get('expenses'),
+                    window.dbHelper.get('visits'),
+                    window.dbHelper.get('odometers'),
+                    window.dbHelper.get('configs'),
+                    window.dbHelper.get('lastLocation')
                 ]);
 
                 if (savedTrips) setTrips(savedTrips);
@@ -170,12 +195,12 @@ window.App = () => {
         loadData();
     }, []);
 
-    useEffect(() => { if(dataLoaded) dbHelper.set('trips', trips); }, [trips, dataLoaded]);
-    useEffect(() => { if(dataLoaded) dbHelper.set('expenses', expenses); }, [expenses, dataLoaded]);
-    useEffect(() => { if(dataLoaded) dbHelper.set('visits', visits); }, [visits, dataLoaded]);
-    useEffect(() => { if(dataLoaded) dbHelper.set('odometers', vehicleOdometers); }, [vehicleOdometers, dataLoaded]);
-    useEffect(() => { if(dataLoaded) dbHelper.set('configs', vehicleConfigs); }, [vehicleConfigs, dataLoaded]);
-    useEffect(() => { if(dataLoaded) dbHelper.set('lastLocation', lastLocation); }, [lastLocation, dataLoaded]);
+    useEffect(() => { if(dataLoaded) window.dbHelper.set('trips', trips); }, [trips, dataLoaded]);
+    useEffect(() => { if(dataLoaded) window.dbHelper.set('expenses', expenses); }, [expenses, dataLoaded]);
+    useEffect(() => { if(dataLoaded) window.dbHelper.set('visits', visits); }, [visits, dataLoaded]);
+    useEffect(() => { if(dataLoaded) window.dbHelper.set('odometers', vehicleOdometers); }, [vehicleOdometers, dataLoaded]);
+    useEffect(() => { if(dataLoaded) window.dbHelper.set('configs', vehicleConfigs); }, [vehicleConfigs, dataLoaded]);
+    useEffect(() => { if(dataLoaded) window.dbHelper.set('lastLocation', lastLocation); }, [lastLocation, dataLoaded]);
 
     // --- TIMER ---
     useEffect(() => {
@@ -745,6 +770,344 @@ window.App = () => {
                     <div className="bg-white h-1/4 rounded-t-[2rem] shadow-lg p-6 overflow-hidden">
                         <h3 className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-4">Últimos Viajes</h3>
                         <div className="space-y-3 overflow-y-auto h-full pb-10 scrollbar-hide">
+                            {trips.length === 0 ? <p className="text-slate-300 text-center text-sm italic mt-4">No hay viajes registrados</p> : 
+                                trips.map(t => (
+                                    <div key={t.id} onClick={() => setEditingTrip(t)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 active:scale-95 transition-transform cursor-pointer">
+                                        <div className="flex justify-between items-center border-b border-slate-50 pb-2 mb-1">
+                                            <span className="text-xs font-bold text-slate-400">{t.date}</span>
+                                            <Icon name="Edit2" size={12} className="text-slate-300"/>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-bold text-slate-800">{t.origin}</span>
+                                                <Icon name="ArrowRight" size={14} className="text-slate-300 my-0.5 rotate-90 sm:rotate-0"/>
+                                                <span className="text-sm font-bold text-slate-800">{t.destination}</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="block text-2xl font-mono font-bold text-blue-600">{t.distance} <span className="text-sm font-sans text-slate-400">km</span></span>
+                                                <span className="text-xs text-slate-400">{t.startTime} - {t.endTime}</span>
+                                            </div>
+                                        </div>
+                                        {/* Mini badge si fue carga */}
+                                        {t.expenses && t.expenses.some(e => e.category.includes('Carga')) && (
+                                            <div className="mt-2 pt-2 border-t border-slate-50 flex items-center justify-between text-[10px] text-slate-500">
+                                                <span className="flex items-center"><Icon name="Fuel" size={10} className="mr-1"/> Carga</span>
+                                                <span className="font-bold">
+                                                    {t.expenses.find(e => e.category.includes('Carga')).volume} {t.expenses.find(e => e.category.includes('Carga')).category.includes('Eléctrica') ? 'kWh' : 'L'}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            }
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* ... Resto de las vistas ... */}
+            {appState === 'STARTING' && (
+                <div className="flex flex-col h-screen w-full max-w-md mx-auto p-5 font-sans relative overflow-hidden bg-white shadow-2xl">
+                        {showGapAlert && (
+                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl mb-6 mx-5 mt-5">
+                            <div className="flex items-center text-amber-600 font-bold mb-2"><Icon name="AlertTriangle" size={18} className="mr-2"/> Diferencia: {gapKm} km</div>
+                            <p className="text-xs text-amber-700 mb-3">El odómetro no coincide con el último cierre del vehículo seleccionado.</p>
+                            <div className="flex gap-2"><button onClick={() => { setShowGapAlert(false); startTripProcess(parseInt(inputOdometer)); }} className="flex-1 bg-amber-200 text-amber-800 py-2 rounded-lg text-xs font-bold">Ignorar</button></div>
+                        </div>
+                    )}
+
+                    {showLocationSelector && (
+                        <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowLocationSelector(false)}>
+                            <div className="bg-white w-full rounded-2xl p-4 shadow-xl" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">
+                                    {locationSelectorMode === 'ORIGIN' ? 'Cambiar Origen' : 'Seleccionar Destino'}
+                                </h3>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {LOCATIONS_PRESETS.map(loc => {
+                                            const preset = LOCATIONS_CONFIG[loc] || { color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' };
+                                            return (
+                                            <button key={loc} onClick={() => handleLocationSelection(loc)} className={`p-3 rounded-xl text-sm font-bold border ${((locationSelectorMode === 'ORIGIN' && loc === lastLocation) || (locationSelectorMode === 'DESTINATION' && loc === inputDestination)) ? 'bg-blue-50 border-blue-500 text-blue-700' : `${preset.bg} ${preset.border} ${preset.color}`}`}>{loc}</button>
+                                            );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showVehicleSelector && (
+                        <div className="absolute inset-0 bg-black/20 z-40 flex flex-col justify-end" onClick={() => setShowVehicleSelector(false)}>
+                            <div className="bg-white rounded-t-3xl p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase mb-4 text-center">Seleccionar Vehículo</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {VEHICLE_TYPES.map(v => (
+                                        <button key={v.id} onClick={() => { setCurrentTrip({...currentTrip, vehicle: v.id}); setInputOdometer(vehicleOdometers[v.id].toString()); setShowVehicleSelector(false); }} className={`flex flex-col items-center justify-center p-4 rounded-2xl transition-all border-2 h-32 ${currentTrip.vehicle === v.id ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-[1.02]' : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-slate-200 hover:bg-slate-100'}`}>
+                                            <Icon name={v.icon} size={32} className="mb-2"/>
+                                            <span className="font-bold text-xs text-center leading-tight">{v.label}</span>
+                                            <span className="font-mono text-[10px] opacity-80">{vehicleOdometers[v.id]} km</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex-1 overflow-y-auto scrollbar-hide p-5 pb-24">
+                        <h2 className="text-2xl font-bold text-slate-800 mb-4">Confirmar Salida</h2>
+                        <div className="space-y-4">
+                            <div className="bg-slate-50 p-3 rounded-2xl">
+                                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Odómetro Inicial</label>
+                                <input type="number" value={inputOdometer} onChange={e => setInputOdometer(e.target.value)} className="w-full bg-transparent text-4xl font-mono font-bold text-slate-800 outline-none" autoFocus onFocus={(e) => e.target.select()}/>
+                            </div>
+                            
+                            {/* Origin Selector */}
+                            <button onClick={() => { setLocationSelectorMode('ORIGIN'); setShowLocationSelector(true); }} className="w-full flex items-center justify-between p-4 border border-slate-200 rounded-2xl bg-white hover:bg-slate-50 transition-colors">
+                                <span className="text-slate-500 font-medium">Saliendo de:</span>
+                                <div className="flex items-center font-bold text-slate-800 bg-blue-50 px-3 py-1 rounded-full"><Icon name="MapPin" size={14} className="mr-1 text-blue-500"/>{lastLocation}<Icon name="Edit2" size={12} className="ml-2 text-blue-300"/></div>
+                            </button>
+
+                            {(lastLocation.toLowerCase().includes('cliente') || ['Otra', 'Otro'].includes(lastLocation)) && (
+                                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl animate-in slide-in-from-left">
+                                    <div className="flex items-center justify-between mb-2"><span className="font-bold text-blue-800 text-sm flex items-center"><Icon name="Car" size={16} className="mr-2"/> ¿Pagaste Estacionamiento?</span></div>
+                                    {currentTrip.tripExpenses.some(e => e.category === 'Estacionamiento') ? (
+                                        <div className="flex items-center text-emerald-600 font-bold text-sm"><Icon name="CheckCircle" size={16} className="mr-2"/> Registrado</div>
+                                    ) : (
+                                        <div className="flex gap-2"><button onClick={() => openExpenseModal('Estacionamiento')} className="flex-1 bg-white text-blue-600 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-blue-100">SÍ, REGISTRAR</button><button className="flex-1 text-slate-400 text-xs font-bold hover:text-slate-600">No</button></div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Destination Selector (NEW GRID INLINE) */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase block mb-3">¿Hacia dónde vas?</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {LOCATIONS_PRESETS.map(loc => {
+                                        const preset = LOCATIONS_CONFIG[loc] || { color: 'text-slate-600', bg: 'bg-white', border: 'border-slate-200', icon: 'MapPin' };
+                                        const Icon = preset.icon;
+                                        return (
+                                            <button
+                                                key={loc}
+                                                onClick={() => {
+                                                    if (loc === 'Cliente') {
+                                                        setTextModalTitle('Nombre del Cliente');
+                                                        setLocationSelectorMode('DESTINATION'); 
+                                                        setShowDestinationModal(true);
+                                                    } else if (loc === 'Otra') {
+                                                        setTextModalTitle('¿Hacia dónde vas?');
+                                                        setLocationSelectorMode('DESTINATION');
+                                                        setShowDestinationModal(true); 
+                                                    } else {
+                                                        setInputDestination(loc);
+                                                        confirmStartTrip(loc);
+                                                    }
+                                                }}
+                                                className={`
+                                                    flex flex-col items-center justify-center p-2 rounded-2xl border-2 transition-all h-16
+                                                    ${(inputDestination === loc || (loc === 'Cliente' && inputDestination.startsWith('Cliente')))
+                                                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg transform scale-[1.02]'
+                                                        : `${preset.bg} ${preset.border} ${preset.color} hover:border-emerald-300`
+                                                    }
+                                                `}
+                                            >
+                                                <Icon name={preset.icon} size={24} className="mb-1"/>
+                                                <span className="text-sm font-bold">{loc}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase block mb-2">Vehículo</label>
+                                <button onClick={() => setShowVehicleSelector(true)} className="w-full flex items-center p-3 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:bg-white hover:border-blue-200 transition-all text-left group">
+                                    <div className="p-2 bg-white rounded-full shadow-sm mr-3 text-blue-600 group-hover:scale-110 transition-transform"><Icon name={getVehicleInfo(currentTrip.vehicle).icon} size={24}/></div>
+                                    <span className="font-bold text-lg text-slate-700 flex-1">{getVehicleInfo(currentTrip.vehicle).label}</span>
+                                    <Icon name="ChevronDown" size={20} className="text-slate-400"/>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="absolute bottom-0 left-0 w-full bg-white/90 backdrop-blur-md p-5 border-t border-slate-100 z-10">
+                        <button onClick={() => setAppState('IDLE')} className="w-full bg-slate-100 text-slate-500 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-colors">Cancelar</button>
+                    </div>
+                </div>
+            )}
+
+            {/* VIEW: ACTIVE */}
+            {appState === 'ACTIVE' && (
+                <div className="flex flex-col h-screen bg-slate-900 text-white w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative">
+                    <div className="z-10 bg-slate-800/80 backdrop-blur-md p-4 flex justify-between items-center border-b border-slate-700">
+                        <div className="flex items-center text-emerald-400 animate-pulse"><div className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></div><span className="font-bold text-xs tracking-widest uppercase">En Ruta</span></div>
+                        {/* Modified Right Side with Timer and Cancel Button */}
+                        <div className="flex items-center gap-3">
+                            <div className="font-mono text-xl flex items-center"><Icon name="Clock" size={16} className="mr-2 text-slate-500"/>{formatTime(elapsedTime)}</div>
+                            <button onClick={() => setAppState('IDLE')} className="bg-slate-800 p-2 rounded-full text-rose-500 border border-slate-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-colors">
+                                <Icon name="X" size={20} />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 z-10">
+                        <div className="text-center">
+                            <div className="inline-flex items-center bg-slate-800 px-3 py-1 rounded-full text-xs font-bold text-slate-400 mb-2">
+                                {getVehicleInfo(currentTrip.vehicle).type === 'electric' ? <Icon name="Zap" size={12} className="mr-1 text-yellow-400"/> : <Icon name="Car" size={12} className="mr-1"/>}
+                                {getVehicleInfo(currentTrip.vehicle).label}
+                            </div>
+                            <p className="text-slate-400 text-xs uppercase tracking-wide">Origen</p>
+                            <h2 className="text-4xl font-bold">{currentTrip.origin}</h2>
+                            {currentTrip.destination && (
+                                <div className="mt-2 text-slate-400 text-sm animate-pulse">
+                                    <span className="opacity-60">Hacia: </span> <span className="text-white font-bold">{currentTrip.destination}</span>
+                                </div>
+                            )}
+                        </div>
+                        <Icon name="ArrowRight" className="text-slate-600 rotate-90" size={32}/>
+                        <div className="grid grid-cols-2 gap-4 w-full">
+                            <button onClick={() => openExpenseModal('Peaje')} className="bg-rose-600 hover:bg-rose-500 p-6 rounded-2xl flex flex-col items-center justify-center transition-all shadow-lg shadow-rose-900/40">
+                                <div className="bg-white/20 p-3 rounded-full mb-2"><Icon name="DollarSign" size={24} className="text-white"/></div>
+                                <span className="font-bold text-lg text-white">PEAJE</span>
+                                <span className="text-xs text-rose-200 mt-1 opacity-80">${formatMoney(getActiveConfig().tollPrice)} {getActiveConfig().currency}</span>
+                            </button>
+                            <button onClick={() => {
+                                if (getVehicleInfo(currentTrip.vehicle).type === 'electric') {
+                                    setShowChargeTypeModal(true);
+                                } else {
+                                    openExpenseModal('Carga Combustible');
+                                }
+                            }} className="bg-orange-600 hover:bg-orange-500 p-6 rounded-2xl flex flex-col items-center justify-center transition-all shadow-lg shadow-orange-900/40">
+                                {getVehicleInfo(currentTrip.vehicle).type === 'electric' ? <Icon name="Zap" size={28} className="text-yellow-300 mb-2"/> : <Icon name="Fuel" size={28} className="text-slate-300 mb-2"/>}
+                                <span className="font-bold text-lg text-white">{getVehicleInfo(currentTrip.vehicle).type === 'electric' ? 'CARGA' : 'NAFTA'}</span>
+                                <span className="text-xs text-orange-200 mt-1 opacity-80">
+                                    {getVehicleInfo(currentTrip.vehicle).type === 'electric' ? 'AC/DC' : `${formatMoney(getActiveConfig().fuelPrice)}/${getVehicleInfo(currentTrip.vehicle).type === 'electric' ? 'kWh' : 'L'}`}
+                                </span>
+                            </button>
+                        </div>
+                        <div className="w-full"><button onClick={() => setShowExpenseCategorySelector(true)} className="w-full py-4 border border-violet-700 text-violet-300 rounded-xl text-sm font-bold hover:bg-violet-900/30 flex items-center justify-center transition-all"><Icon name="Plus" size={18} className="mr-2"/> Gasto</button></div>
+                    </div>
+                    <div className="p-6 bg-slate-900 border-t border-slate-800 z-10">
+                        <button onClick={handleArrivePress} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-bold text-lg shadow-lg shadow-emerald-900/50 flex items-center justify-center hover:bg-emerald-500"><Icon name="MapPin" className="mr-2" fill="currentColor"/> LLEGAR A DESTINO</button>
+                    </div>
+                </div>
+            )}
+
+            {/* VIEW: ENDING */}
+            {appState === 'ENDING' && (
+                <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50">
+                    <div className="bg-emerald-600 p-6 text-white rounded-b-[2rem] shadow-lg">
+                        <h2 className="text-2xl font-bold">Llegada</h2>
+                        <p className="text-emerald-100 text-sm">Completa los datos de cierre.</p>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
+                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-slate-400 uppercase">Odómetro Final</label>
+                                <span className={`font-mono font-bold ${(parseInt(inputOdometer) || 0) - currentTrip.startOdometer < 0 ? 'text-red-500' : 'text-emerald-600'}`}>{(parseInt(inputOdometer) || 0) - currentTrip.startOdometer} km</span>
+                            </div>
+                            <input type="number" value={inputOdometer} onChange={(e) => setInputOdometer(e.target.value)} className="w-full text-3xl font-mono font-bold text-slate-800 outline-none border-b-2 border-slate-100 focus:border-emerald-500" autoFocus onFocus={(e) => e.target.select()}/>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase block mb-2">Llegaste a:</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {LOCATIONS_PRESETS.map(loc => (
+                                    <button 
+                                        key={loc} 
+                                        onClick={() => { 
+                                            setLocationSelectorMode('DESTINATION');
+                                            handleLocationSelection(loc);
+                                        }} 
+                                        className={`py-3 px-1 rounded-xl text-xs font-bold border-2 transition-all ${inputDestination === loc || (loc === 'Cliente' && inputDestination.startsWith('Cliente:')) ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-100 text-slate-500'}`}
+                                    >
+                                        {loc}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase block mb-2">Gastos Adicionales</label>
+                            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                                {EXPENSE_CATEGORIES.FOOD.map(item => (
+                                    <button key={item} onClick={() => openExpenseModal(item)} className="flex items-center flex-shrink-0 bg-white border border-slate-100 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 shadow-sm active:scale-95"><Icon name="Utensils" size={14} className="mr-2 text-orange-400"/> {item}</button>
+                                ))}
+                                {EXPENSE_CATEGORIES.LODGING.map(item => (
+                                    <button key={item} onClick={() => openExpenseModal(item)} className="flex items-center flex-shrink-0 bg-white border border-slate-100 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 shadow-sm active:scale-95"><Icon name="Bed" size={14} className="mr-2 text-indigo-400"/> {item}</button>
+                                ))}
+                            </div>
+                        </div>
+                        {currentTrip.tripExpenses.length > 0 && (
+                            <div className="border-t border-slate-100 pt-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Resumen de Gastos</h4>
+                                {currentTrip.tripExpenses.map(exp => (
+                                    <div key={exp.id} className="flex flex-col mb-3 border-b border-slate-50 pb-2 last:border-0">
+                                        <div className="flex justify-between text-sm"><span className="text-slate-600 font-medium">{exp.category}</span><span className="font-mono font-bold text-slate-800">{exp.currency} {formatMoney(exp.amount)}</span></div>
+                                        {exp.notes && <div className="text-xs text-slate-400 mt-1 italic flex items-center"><Icon name="StickyNote" size={10} className="mr-1"/> {exp.notes}</div>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-6 bg-white border-t border-slate-100">
+                        <button disabled={!inputDestination || ((parseInt(inputOdometer) || 0) - currentTrip.startOdometer) < 0} onClick={confirmEndTrip} className="w-full bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white py-4 rounded-xl font-bold text-lg shadow-xl">CERRAR VIAJE</button>
+                    </div>
+                </div>
+            )}
+
+            {/* VIEW: SETTINGS */}
+            {appState === 'SETTINGS' && (
+                <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50 p-6">
+                    {showSaveConfirmation && (
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-xs text-center animate-in fade-in zoom-in duration-300">
+                                <div className="mx-auto bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 ring-8 ring-emerald-50"><Icon name="CheckCircle" size={40} className="text-emerald-600" /></div>
+                                <h3 className="text-xl font-bold text-slate-800 mb-2">¡Datos Guardados!</h3>
+                                <p className="text-slate-500 text-sm mb-6 leading-relaxed">Perfil actualizado.</p>
+                                <button onClick={() => setShowSaveConfirmation(false)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-200">Entendido</button>
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex items-center mb-6"><button onClick={() => setAppState('IDLE')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><Icon name="ArrowRight" className="rotate-180" size={24}/></button><h2 className="text-2xl font-bold ml-2">Configuración</h2></div>
+                    <div className="grid grid-cols-2 gap-3 mb-4">{VEHICLE_TYPES.map(v => <button key={v.id} onClick={() => setEditingVehicleId(v.id)} className={`flex flex-col items-center justify-center p-4 rounded-2xl transition-all border-2 ${editingVehicleId === v.id ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100'}`}><Icon name={v.icon} size={28}/><span className="text-xs mt-2">{v.label}</span></button>)}</div>
+                    <div className="space-y-4 flex-1 overflow-y-auto">
+                        <div><label className="text-xs font-bold text-slate-500">Peaje</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].tollPrice} onChange={e => updateVehicleConfig('tollPrice', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
+                        <div><label className="text-xs font-bold text-slate-500">Valor Km</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].kmValue} onChange={e => updateVehicleConfig('kmValue', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
+                        {getVehicleInfo(editingVehicleId).type === 'electric' ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="text-xs font-bold text-slate-500">Carga AC</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].fuelPriceAC} onChange={e => updateVehicleConfig('fuelPriceAC', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
+                                <div><label className="text-xs font-bold text-slate-500">Carga CC</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].fuelPriceDC} onChange={e => updateVehicleConfig('fuelPriceDC', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
+                            </div>
+                        ) : (
+                            <div><label className="text-xs font-bold text-slate-500">Combustible</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].fuelPrice} onChange={e => updateVehicleConfig('fuelPrice', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
+                        )}
+                    </div>
+                    <button onClick={() => setShowSaveConfirmation(true)} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-xl mt-4">Guardar</button>
+                </div>
+            )}
+
+            {/* VIEW: HISTORY */}
+            {appState === 'HISTORY' && (
+                <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50">
+                    {/* Modal Edición de Viaje */}
+                    <TripEditModal 
+                        isOpen={!!editingTrip}
+                        trip={editingTrip}
+                        onClose={() => setEditingTrip(null)}
+                        onSave={saveEditedTrip}
+                        onDelete={deleteTrip}
+                    />
+                    
+                    <VisitEditModal 
+                        isOpen={!!editingVisit}
+                        visit={editingVisit}
+                        onClose={() => setEditingVisit(null)}
+                        onSave={saveEditedVisit}
+                        onDelete={deleteVisit}
+                    />
+
+                    <div className="bg-slate-800 text-white p-6 pb-8 rounded-b-[2rem] shadow-xl z-10"><div className="flex items-center mb-4"><button onClick={() => setAppState('IDLE')}><Icon name="ArrowRight" className="rotate-180" size={24}/></button><h2 className="text-2xl font-bold ml-2">Historial</h2></div></div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                        <div className="bg-white rounded-2xl shadow-lg p-1 flex mb-4">
+                            <button onClick={() => setHistoryTab('TRIPS')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${historyTab === 'TRIPS' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Viajes</button>
+                            <button onClick={() => setHistoryTab('VISITS')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${historyTab === 'VISITS' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Visitas</button>
+                            <button onClick={() => setHistoryTab('EXPENSES')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${historyTab === 'EXPENSES' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Gastos</button>
+                        </div>
+                        <div className="space-y-3 pb-10 scrollbar-hide">
                             {historyTab === 'TRIPS' && (
                                 trips.length === 0 ? <div className="flex flex-col items-center justify-center h-full text-slate-400"><Icon name="Car" size={48} className="mb-4 opacity-20"/><p className="text-sm font-medium">Sin viajes registrados</p></div> : 
                                     trips.map(t => (
