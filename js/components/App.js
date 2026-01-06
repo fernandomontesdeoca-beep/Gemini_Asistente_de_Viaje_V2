@@ -177,7 +177,21 @@ window.App = () => {
         if (!googleScriptUrl) return;
         setIsSyncing(true);
         try {
-            const dataToSync = { trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation };
+            // Empaquetamos TODO para que el script lo guarde, incluyendo ESTADO DEL VIAJE
+            const dataToSync = {
+                trips,
+                expenses,
+                visits,
+                vehicleOdometers,
+                vehicleConfigs,
+                lastLocation,
+                // Enviamos el estado actual para que se guarde en la nube
+                currentTripState: {
+                    appState,
+                    currentTrip,
+                    lastUpdated: new Date().toISOString()
+                }
+            };
             
             if (!window.GoogleSheetSync) throw new Error("Servicio de sincronización no cargado.");
             
@@ -186,14 +200,43 @@ window.App = () => {
             if (result.status === 'success' && result.data) {
                 const cloud = result.data;
                 
-                // ACTUALIZAR ESTADO LOCAL CON DATOS DE LA NUBE
+                // 1. ACTUALIZAR DATOS MAESTROS
                 if (cloud.trips) setTrips(cloud.trips);
                 if (cloud.expenses) setExpenses(cloud.expenses);
                 if (cloud.vehicleOdometers) setVehicleOdometers(cloud.vehicleOdometers);
                 if (cloud.vehicleConfigs) setVehicleConfigs(cloud.vehicleConfigs);
                 
-                // Reconstruir Visitas (Hydration)
-                // La nube devuelve IDs, pero la App necesita objetos completos en inboundTrip/outboundTrip
+                // 2. ACTUALIZAR UBICACIÓN Y ESTADO DEL VIAJE (CRÍTICO)
+                if (cloud.appStateData) {
+                    const cloudState = cloud.appStateData; // Datos que vienen de la pestaña APP_STATE del Sheet
+                    
+                    // Si la nube tiene una ubicación más reciente o diferente, la adoptamos
+                    if (cloudState.lastLocation && cloudState.lastLocation !== lastLocation) {
+                        setLastLocation(cloudState.lastLocation);
+                    }
+
+                    // --- LÓGICA DE CONTINUIDAD DE VIAJE ---
+                    // Si la nube dice que hay un viaje activo y nosotros estamos en IDLE...
+                    if (cloudState.tripStatus === 'ACTIVE' && appState === 'IDLE') {
+                        const confirmContinue = window.confirm(
+                            `Se detectó un viaje activo en otro dispositivo desde: ${cloudState.tripOrigin}.\n\n¿Deseas continuar este viaje aquí?`
+                        );
+                        
+                        if (confirmContinue) {
+                            setAppState('ACTIVE');
+                            setCurrentTrip({
+                                ...currentTrip,
+                                startTime: new Date(cloudState.tripStartTime), // Importante: convertir string a Date
+                                origin: cloudState.tripOrigin,
+                                vehicle: cloudState.tripVehicle,
+                                startOdometer: parseInt(cloudState.tripStartOdo || 0),
+                                tripExpenses: [] // Los gastos anteriores ya deberían estar en 'expenses' si se sincronizaron
+                            });
+                        }
+                    }
+                }
+
+                // Reconstruir Visitas
                 if (cloud.visits && cloud.trips) {
                     const hydratedVisits = cloud.visits.map(v => ({
                         ...v,
@@ -203,13 +246,13 @@ window.App = () => {
                     setVisits(hydratedVisits);
                 }
 
-                alert("✅ Sincronización completada. Datos actualizados.");
+                alert("✅ Sincronización completa. Estado actualizado.");
             } else {
                 alert("⚠️ " + (result.message || "Error en el servidor."));
             }
         } catch (error) {
             console.error(error);
-            alert("❌ Error: " + error.message);
+            alert("❌ Error de conexión: " + error.message);
         } finally {
             setIsSyncing(false);
         }
@@ -303,31 +346,19 @@ window.App = () => {
             status: 'CLOSED',
             startOdometer: currentTrip.startOdometer,
             endOdometer: endOdo,
-            updatedAt: new Date().toISOString() // TIMESTAMP AGREGADO
+            updatedAt: new Date().toISOString()
         };
         setTrips(prev => [newTrip, ...prev]);
         
         if (newTrip.origin.toLowerCase().startsWith('cliente')) {
             setVisits(prev => {
                 const idx = prev.findIndex(v => v.client === newTrip.origin && v.status === 'OPEN');
-                if (idx !== -1) { 
-                    const updated = [...prev]; 
-                    updated[idx] = { ...updated[idx], outboundTrip: newTrip, status: 'COMPLETED', updatedAt: new Date().toISOString() }; 
-                    return updated; 
-                }
+                if (idx !== -1) { const updated = [...prev]; updated[idx] = { ...updated[idx], outboundTrip: newTrip, status: 'COMPLETED', updatedAt: new Date().toISOString() }; return updated; }
                 return prev;
             });
         }
         if (newTrip.destination.toLowerCase().startsWith('cliente')) {
-            setVisits(prev => [{ 
-                id: Date.now() + '_visit', 
-                client: newTrip.destination, 
-                date: newTrip.date, 
-                inboundTrip: newTrip, 
-                outboundTrip: null, 
-                status: 'OPEN', 
-                updatedAt: new Date().toISOString() 
-            }, ...prev]);
+            setVisits(prev => [{ id: Date.now() + '_visit', client: newTrip.destination, date: newTrip.date, inboundTrip: newTrip, outboundTrip: null, status: 'OPEN', updatedAt: new Date().toISOString() }, ...prev]);
         }
 
         setVehicleOdometers(prev => ({ ...prev, [currentTrip.vehicle]: endOdo }));
@@ -439,7 +470,7 @@ window.App = () => {
             odometer: expenseModalData.odometer,
             volume: expenseModalData.volume,
             tripId: currentTrip.startTime ? 'current_trip' : 'loose_expense',
-            updatedAt: new Date().toISOString() // TIMESTAMP AGREGADO
+            updatedAt: new Date().toISOString()
         };
 
         const isCharge = ['Carga Combustible', 'Carga Eléctrica'].includes(expenseModalData.category);
@@ -468,7 +499,7 @@ window.App = () => {
         }
     };
     
-    // --- EDIT HANDLERS (UPDATED WITH TIMESTAMPS) ---
+    // --- EDIT HANDLERS ---
     const saveEditedTrip = (updatedTrip) => {
         const tripWithDate = { ...updatedTrip, updatedAt: new Date().toISOString() };
         setTrips(prev => prev.map(t => t.id === updatedTrip.id ? tripWithDate : t));
