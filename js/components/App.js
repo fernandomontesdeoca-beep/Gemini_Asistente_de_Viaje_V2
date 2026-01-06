@@ -1,6 +1,7 @@
 const { useState, useEffect } = React;
 
 // --- Imports ---
+// Modales
 const UpdateAppModal = window.UpdateAppModal;
 const ResumeTripModal = window.ResumeTripModal;
 const ExpenseModal = window.ExpenseModal;
@@ -13,6 +14,7 @@ const TripEditModal = window.TripEditModal;
 const VisitEditModal = window.VisitEditModal;
 const DataImportModal = window.DataImportModal;
 
+// Vistas
 const HomeView = window.HomeView;
 const HistoryView = window.HistoryView;
 const SettingsView = window.SettingsView;
@@ -20,10 +22,15 @@ const StartingView = window.StartingView;
 const ActiveTripView = window.ActiveTripView;
 const EndingTripView = window.EndingTripView;
 
+// Servicios
+const GoogleSheetSync = window.GoogleSheetSync;
+
+// Globales
 const APP_VERSION = window.APP_VERSION;
 const formatMoney = window.formatMoney;
 const OFFICIAL_RATES = window.OFFICIAL_RATES;
 const getVehicleInfo = window.getVehicleInfo;
+
 
 window.App = () => {
     // --- ESTADO ---
@@ -33,6 +40,10 @@ window.App = () => {
     const [pendingResumeData, setPendingResumeData] = useState(null);
     const [showDataImportModal, setShowDataImportModal] = useState(false);
     
+    // Estado de Sincronización
+    const [googleScriptUrl, setGoogleScriptUrl] = useState('');
+    const [isSyncing, setIsSyncing] = useState(false);
+
     const [appState, setAppState] = useState('IDLE');
     const [defaultVehicleId, setDefaultVehicleId] = useState('PERSONAL');
     const [historyTab, setHistoryTab] = useState('TRIPS');
@@ -90,7 +101,7 @@ window.App = () => {
     const [gapKm, setGapKm] = useState(0);
     const [elapsedTime, setElapsedTime] = useState(0);
 
-    // --- INIT ---
+    // --- CHECK VERSIÓN & INIT ---
     useEffect(() => {
         const checkAppVersion = async () => {
             try {
@@ -132,10 +143,11 @@ window.App = () => {
     useEffect(() => {
         const loadData = async () => {
             try {
-                const [sTrips, sExpenses, sVisits, sOdos, sConfigs, sLoc, sState] = await Promise.all([
+                const [sTrips, sExpenses, sVisits, sOdos, sConfigs, sLoc, sState, sUrl] = await Promise.all([
                     window.dbHelper.get('trips'), window.dbHelper.get('expenses'), window.dbHelper.get('visits'),
                     window.dbHelper.get('odometers'), window.dbHelper.get('configs'), window.dbHelper.get('lastLocation'),
-                    window.dbHelper.get('app_state_persist')
+                    window.dbHelper.get('app_state_persist'),
+                    window.dbHelper.get('google_script_url') // <--- Cargar URL
                 ]);
 
                 if (sTrips) setTrips(sTrips);
@@ -144,6 +156,8 @@ window.App = () => {
                 if (sOdos) setVehicleOdometers(sOdos);
                 if (sLoc) setLastLocation(sLoc);
                 if (sConfigs) setVehicleConfigs(sConfigs);
+                if (sUrl) setGoogleScriptUrl(sUrl); // <--- Setear URL
+                
                 if (sState && sState.appState === 'ACTIVE') {
                      setPendingResumeData(sState);
                      setShowResumeModal(true);
@@ -163,7 +177,37 @@ window.App = () => {
         window.dbHelper.set('configs', vehicleConfigs);
         window.dbHelper.set('lastLocation', lastLocation);
         window.dbHelper.set('app_state_persist', { appState, currentTrip });
-    }}, [trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, appState, currentTrip, dataLoaded]);
+        window.dbHelper.set('google_script_url', googleScriptUrl); // <--- Guardar URL
+    }}, [trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, appState, currentTrip, googleScriptUrl, dataLoaded]);
+
+    // --- CLOUD SYNC HANDLER ---
+    const handleCloudSync = async () => {
+        if (!googleScriptUrl) return;
+        setIsSyncing(true);
+        try {
+            const dataToSync = {
+                trips,
+                expenses,
+                visits
+            };
+            
+            // Usar el servicio global (asegúrate de que GoogleSheetSync esté cargado en index.html)
+            if (!window.GoogleSheetSync) throw new Error("El servicio de sincronización no está cargado.");
+            
+            const result = await window.GoogleSheetSync.syncData(googleScriptUrl, dataToSync);
+            
+            if (result.status === 'success') {
+                alert("✅ Sincronización completada con éxito.");
+            } else {
+                alert("⚠️ " + (result.message || "Error desconocido en el servidor."));
+            }
+        } catch (error) {
+            console.error(error);
+            alert("❌ Error de conexión: " + error.message);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     // --- TIMER ---
     useEffect(() => {
@@ -180,7 +224,7 @@ window.App = () => {
         return () => clearInterval(interval);
     }, [appState, currentTrip.startTime]);
 
-    // --- LOGIC ---
+    // --- LOGIC HELPERS ---
     const getActiveConfig = () => {
         const vId = (appState === 'ACTIVE' || appState === 'ENDING' || appState === 'STARTING') ? currentTrip.vehicle : dashboardVehicleId; 
         return vehicleConfigs[vId] || vehicleConfigs['PERSONAL'];
@@ -238,6 +282,7 @@ window.App = () => {
     const confirmEndTrip = () => {
         const endOdo = parseInt(inputOdometer) || 0;
         const distance = endOdo - currentTrip.startOdometer;
+        const safeStartTime = currentTrip.startTime instanceof Date ? currentTrip.startTime : new Date();
         const safeEndTime = new Date();
         const newTrip = {
             id: Date.now(),
@@ -265,6 +310,7 @@ window.App = () => {
         if (newTrip.destination.toLowerCase().startsWith('cliente')) {
             setVisits(prev => [{ id: Date.now() + '_visit', client: newTrip.destination, date: newTrip.date, inboundTrip: newTrip, outboundTrip: null, status: 'OPEN' }, ...prev]);
         }
+
         setVehicleOdometers(prev => ({ ...prev, [currentTrip.vehicle]: endOdo }));
         setLastLocation(inputDestination);
         setAppState('IDLE');
@@ -529,6 +575,9 @@ window.App = () => {
                     updateVehicleConfig={updateVehicleConfig} setShowSaveConfirmation={setShowSaveConfirmation}
                     setAppState={setAppState} showSaveConfirmation={showSaveConfirmation}
                     handleExportData={handleExportData} setShowDataImportModal={setShowDataImportModal}
+                    // Props nuevas para sync
+                    googleScriptUrl={googleScriptUrl} setGoogleScriptUrl={setGoogleScriptUrl} 
+                    handleCloudSync={handleCloudSync} isSyncing={isSyncing}
                 />
             )}
 

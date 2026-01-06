@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trip-assistant-v2.5.1'; // ACTUALIZADO A 2.5.1
+const CACHE_NAME = 'trip-assistant-v2.6.0'; // ACTUALIZADO A 2.6.0
 const IS_PRODUCTION = true;
 
 // Archivos LOCALES requeridos para que la app funcione offline.
@@ -9,19 +9,25 @@ const ASSETS_TO_CACHE = [
   './css/styles.css',
   './js/config.js',
   './js/db.js',
+  './js/services/GoogleSheetSync.js', // Asegúrate de tener este archivo si usas Sync
   './js/components/Icons.js',
-  './js/components/App.js',
-  './js/main.js',
-  // Nuevos archivos modulares
+  
+  // Modales
   './js/components/modals/SystemModals.js',
   './js/components/modals/TransactionModals.js',
   './js/components/modals/TripModals.js',
+  
+  // Vistas
   './js/components/views/HomeView.js',
   './js/components/views/StartingView.js',
   './js/components/views/ActiveTripView.js',
   './js/components/views/EndingTripView.js',
   './js/components/views/SettingsView.js',
-  './js/components/views/HistoryView.js'
+  './js/components/views/HistoryView.js',
+
+  // Core
+  './js/components/App.js',
+  './js/main.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -53,12 +59,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
-      if (response) {
-        return response;
-      }
-      return fetch(event.request).catch(() => {
-        // Fallback offline
-      });
+      if (response) return response;
+      return fetch(event.request).catch(() => {});
     })
   );
 });

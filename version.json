@@ -1,6 +1,6 @@
 {
-  "version": "2.5.1",
+  "version": "2.6.0",
   "build": "20250106",
   "priority": "high",
-  "description": "Critical Fix: Added missing function and fixed SW syntax"
+  "description": "Refactorización Modular Completa y Sincronización"
 }
