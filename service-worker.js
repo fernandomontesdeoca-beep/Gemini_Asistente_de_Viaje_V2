@@ -1,27 +1,23 @@
-const CACHE_NAME = 'trip-assistant-v2.1.9'; // ACTUALIZADO A 2.1.9
+const CACHE_NAME = 'trip-assistant-v2.2.0'; // ACTUALIZADO A 2.2.0
 const IS_PRODUCTION = true; 
 
-// Archivos requeridos para que la app funcione offline
+// Archivos LOCALES requeridos para que la app funcione offline.
+// Nota: No incluimos librerías externas (CDN) aquí para evitar errores CORS.
+// El navegador las cacheará por su cuenta en la caché HTTP normal.
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  // Nuevos archivos CSS y JS locales
   './css/styles.css',
   './js/config.js',
   './js/db.js',
   './js/components/Icons.js',
   './js/components/Modals.js',
   './js/components/App.js',
-  './js/main.js',
-  // Librerías externas
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/react@18/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
-  'https://unpkg.com/@babel/standalone/babel.min.js'
+  './js/main.js'
 ];
 
-// Instalación: Guardar archivos en caché
+// Instalación: Guardar archivos locales en caché
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -49,17 +45,18 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// Intercepción de peticiones: Servir desde caché primero, luego red
+// Intercepción de peticiones
 self.addEventListener('fetch', (event) => {
+  // Estrategia: Cache First, falling back to Network
+  // Intentamos servir desde caché. Si no está (ej. librerías externas la primera vez), vamos a la red.
   event.respondWith(
     caches.match(event.request).then((response) => {
-      // Si está en caché, devolverlo
       if (response) {
         return response;
       }
-      // Si no, ir a la red
       return fetch(event.request).catch(() => {
-        // Fallback offline (opcional)
+        // Fallback offline (opcional, por si no hay red y no está en caché)
+        // Podríamos retornar una página de "Sin conexión" genérica aquí
       });
     })
   );
