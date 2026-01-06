@@ -171,27 +171,68 @@ const VisitEditModal = ({ isOpen, onClose, onSave, onDelete, visit }) => {
 
     if (!isOpen || !visit) return null;
 
+    // Helper para listar gastos de un viaje
+    const renderExpenses = (trip) => {
+        if (!trip || !trip.expenses || trip.expenses.length === 0) return null;
+        return trip.expenses.map((exp, idx) => (
+            <div key={idx} className="flex justify-between text-xs text-slate-600 border-b border-slate-100 last:border-0 py-1">
+                <span>{exp.category}</span>
+                <span className="font-mono font-bold">{exp.currency} {formatMoney(exp.amount)}</span>
+            </div>
+        ));
+    };
+
     return (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200">
-                <div className="flex justify-between items-center mb-6">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-bold text-slate-800 flex items-center">
-                        <Icon name="Edit2" size={20} className="mr-2 text-blue-600"/> Editar Visita
+                        <Icon name="Briefcase" size={20} className="mr-2 text-blue-600"/> Detalle de Visita
                     </h3>
                     <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><Icon name="X" size={20} className="text-slate-500"/></button>
                 </div>
-                <div className="space-y-4">
+
+                <div className="space-y-4 overflow-y-auto pr-1 custom-scrollbar scrollbar-hide">
+                    {/* Edición de Nombre */}
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cliente</label>
-                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-                            <Icon name="User" size={14} className="text-slate-400 mr-2"/>
-                            <input type="text" value={formData.client || ''} onChange={e => setFormData({...formData, client: e.target.value})} className="bg-transparent w-full text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
+                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-3">
+                            <Icon name="User" size={16} className="text-slate-400 mr-2"/>
+                            <input 
+                                type="text" 
+                                value={formData.client || ''} 
+                                onChange={e => setFormData({...formData, client: e.target.value})} 
+                                className="bg-transparent w-full text-base font-bold text-slate-700 outline-none"
+                            />
                         </div>
                     </div>
+
+                    {/* Resumen de Gastos - IDA */}
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div className="flex items-center mb-2 text-blue-600 font-bold text-xs uppercase tracking-wide">
+                            <Icon name="ArrowRight" size={12} className="mr-1"/> Viaje de Ida
+                        </div>
+                        {renderExpenses(visit.inboundTrip) || <p className="text-xs text-slate-400 italic">Sin gastos registrados</p>}
+                    </div>
+
+                    {/* Resumen de Gastos - VUELTA */}
+                    {visit.outboundTrip && (
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center mb-2 text-emerald-600 font-bold text-xs uppercase tracking-wide">
+                                <Icon name="ArrowRight" size={12} className="mr-1 rotate-180"/> Viaje de Vuelta
+                            </div>
+                            {renderExpenses(visit.outboundTrip) || <p className="text-xs text-slate-400 italic">Sin gastos registrados</p>}
+                        </div>
+                    )}
                 </div>
-                 <div className="mt-6 flex gap-3">
-                    <button onClick={() => onDelete(formData.id)} className="p-4 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"><Icon name="Trash2" size={20}/></button>
-                    <button onClick={() => onSave(formData)} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all active:scale-95">Guardar Cambios</button>
+
+                 <div className="mt-6 flex gap-3 pt-4 border-t border-slate-100">
+                    <button onClick={() => onDelete(formData.id)} className="p-4 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors">
+                        <Icon name="Trash2" size={20}/>
+                    </button>
+                    <button onClick={() => onSave(formData)} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all active:scale-95">
+                        Guardar Cambios
+                    </button>
                 </div>
             </div>
         </div>

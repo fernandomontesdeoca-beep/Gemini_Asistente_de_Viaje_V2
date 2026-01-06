@@ -3,7 +3,7 @@ const { useState, useEffect } = React;
 const App = () => {
     // --- ESTADO ---
     const [rateChanges, setRateChanges] = useState([]);
-    const [showUpdateAppModal, setShowUpdateAppModal] = useState(false); // <--- NUEVO: Estado para actualización de App
+    const [showUpdateAppModal, setShowUpdateAppModal] = useState(false);
     
     const [appState, setAppState] = useState('IDLE');
     const [defaultVehicleId, setDefaultVehicleId] = useState('PERSONAL');
@@ -44,7 +44,7 @@ const App = () => {
 
     // Configs
     const [vehicleConfigs, setVehicleConfigs] = useState({
-        PERSONAL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '15.00', currency: 'UYU' },
+        PERSONAL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '14.24', currency: 'UYU' },
         COMPANY_FUEL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '12.00', currency: 'UYU' },
         COMPANY_ELECTRIC: { tollPrice: '162.00', fuelPriceAC: '9.50', fuelPriceDC: '10.80', kmValue: '4.00', currency: 'UYU' }, 
         OTHER: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '20.00', currency: 'UYU' }
@@ -72,7 +72,8 @@ const App = () => {
         type: 'Personal',
         notes: '',
         odometer: '',
-        volume: ''
+        volume: '',
+        unitPrice: null
     });
 
     const [inputOdometer, setInputOdometer] = useState('');
@@ -81,15 +82,13 @@ const App = () => {
     const [gapKm, setGapKm] = useState(0);
     const [elapsedTime, setElapsedTime] = useState(0);
 
-    // --- NUEVO: CHECK DE VERSIÓN ---
+    // --- CHECK DE VERSIÓN ---
     useEffect(() => {
         const checkAppVersion = async () => {
             try {
-                // Agregamos timestamp para evitar que el navegador use una versión vieja del JSON en caché
                 const response = await fetch(`./version.json?t=${new Date().getTime()}`);
                 if (response.ok) {
                     const data = await response.json();
-                    // Comparamos la versión de la nube con la local (APP_VERSION de config.js)
                     if (data.version !== APP_VERSION) {
                         console.log(`Nueva versión detectada: ${data.version} (Actual: ${APP_VERSION})`);
                         setShowUpdateAppModal(true);
@@ -100,26 +99,20 @@ const App = () => {
             }
         };
 
-        // Solo comprobar si estamos en modo IDLE (pantalla principal)
         if (appState === 'IDLE') {
             checkAppVersion();
         }
     }, [appState]);
 
     const handleAppUpdateConfirm = async () => {
-        // 1. Borrar todas las cachés (Esperar a que termine)
         if ('caches' in window) {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
         }
-        
-        // 2. Desregistrar Service Workers (Esperar a que termine)
         if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
             await Promise.all(registrations.map(r => r.unregister()));
         }
-        
-        // 3. Forzar recarga desde el servidor
         window.location.reload(true);
     };
 
@@ -144,7 +137,6 @@ const App = () => {
                 
                 if (savedConfigs) {
                     setVehicleConfigs(savedConfigs);
-                    // Comparación de Tarifas
                     const detectedChanges = [];
                     const myRef = savedConfigs['PERSONAL']; 
                     if (myRef) {
@@ -225,7 +217,7 @@ const App = () => {
         openExpenseModal('Carga Eléctrica', formatMoney(price));
     };
 
-   const openExpenseModal = (category, amountOverride = null, expenseToEdit = null) => {
+    const openExpenseModal = (category, amountOverride = null, expenseToEdit = null) => {
         const currentVId = (appState === 'ACTIVE' || appState === 'ENDING' || appState === 'STARTING') ? currentTrip.vehicle : dashboardVehicleId;
         const currentOdo = vehicleOdometers[currentVId] || 0;
 
@@ -247,13 +239,11 @@ const App = () => {
         } else {
             const activeConfig = getActiveConfig();
             const isCompanyVehicle = currentVId.includes('COMPANY');
-            // Inicializamos unitPrice en null
             let defaults = { amount: '', currency: 'UYU', method: 'CREDITO', type: isCompanyVehicle ? 'Empresa' : 'Empresa', unitPrice: null };
 
             if (category === 'Peaje') {
                 defaults = { amount: formatMoney(activeConfig.tollPrice), currency: activeConfig.currency, method: 'DEBITO', type: 'Personal', unitPrice: null };
             } else if (['Carga Combustible', 'Combustible'].includes(category)) {
-                // CORRECCIÓN: Aquí pasamos el precio del combustible (fuelPrice) como unitPrice
                 defaults = { amount: '', currency: activeConfig.currency, method: 'CREDITO', type: 'Personal', unitPrice: activeConfig.fuelPrice };
             } else if (category === 'Carga Eléctrica') {
                 const price = amountOverride || activeConfig.fuelPriceAC; 
@@ -274,7 +264,7 @@ const App = () => {
                 notes: '',
                 odometer: currentOdo,
                 volume: '',
-                unitPrice: defaults.unitPrice // IMPORTANTE: Pasamos el precio al estado del modal
+                unitPrice: defaults.unitPrice 
             });
         }
         setShowExpenseCategorySelector(false);
@@ -755,344 +745,6 @@ const App = () => {
                     <div className="bg-white h-1/4 rounded-t-[2rem] shadow-lg p-6 overflow-hidden">
                         <h3 className="text-slate-300 text-xs font-bold uppercase tracking-wider mb-4">Últimos Viajes</h3>
                         <div className="space-y-3 overflow-y-auto h-full pb-10 scrollbar-hide">
-                            {trips.length === 0 ? <p className="text-slate-300 text-center text-sm italic mt-4">No hay viajes registrados</p> : 
-                                trips.map(t => (
-                                    <div key={t.id} onClick={() => setEditingTrip(t)} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 active:scale-95 transition-transform cursor-pointer">
-                                        <div className="flex justify-between items-center border-b border-slate-50 pb-2 mb-1">
-                                            <span className="text-xs font-bold text-slate-400">{t.date}</span>
-                                            <Icon name="Edit2" size={12} className="text-slate-300"/>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-bold text-slate-800">{t.origin}</span>
-                                                <Icon name="ArrowRight" size={14} className="text-slate-300 my-0.5 rotate-90 sm:rotate-0"/>
-                                                <span className="text-sm font-bold text-slate-800">{t.destination}</span>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="block text-2xl font-mono font-bold text-blue-600">{t.distance} <span className="text-sm font-sans text-slate-400">km</span></span>
-                                                <span className="text-xs text-slate-400">{t.startTime} - {t.endTime}</span>
-                                            </div>
-                                        </div>
-                                        {/* Mini badge si fue carga */}
-                                        {t.expenses && t.expenses.some(e => e.category.includes('Carga')) && (
-                                            <div className="mt-2 pt-2 border-t border-slate-50 flex items-center justify-between text-[10px] text-slate-500">
-                                                <span className="flex items-center"><Icon name="Fuel" size={10} className="mr-1"/> Carga</span>
-                                                <span className="font-bold">
-                                                    {t.expenses.find(e => e.category.includes('Carga')).volume} {t.expenses.find(e => e.category.includes('Carga')).category.includes('Eléctrica') ? 'kWh' : 'L'}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
-                            }
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {/* ... Vistas STARTING, ACTIVE, ENDING, SETTINGS, HISTORY ... */}
-            {appState === 'STARTING' && (
-                <div className="flex flex-col h-screen w-full max-w-md mx-auto p-5 font-sans relative overflow-hidden bg-white shadow-2xl">
-                        {showGapAlert && (
-                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl mb-6 mx-5 mt-5">
-                            <div className="flex items-center text-amber-600 font-bold mb-2"><Icon name="AlertTriangle" size={18} className="mr-2"/> Diferencia: {gapKm} km</div>
-                            <p className="text-xs text-amber-700 mb-3">El odómetro no coincide con el último cierre del vehículo seleccionado.</p>
-                            <div className="flex gap-2"><button onClick={() => { setShowGapAlert(false); startTripProcess(parseInt(inputOdometer)); }} className="flex-1 bg-amber-200 text-amber-800 py-2 rounded-lg text-xs font-bold">Ignorar</button></div>
-                        </div>
-                    )}
-
-                    {showLocationSelector && (
-                        <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowLocationSelector(false)}>
-                            <div className="bg-white w-full rounded-2xl p-4 shadow-xl" onClick={e => e.stopPropagation()}>
-                                <h3 className="text-sm font-bold text-slate-500 uppercase mb-3">
-                                    {locationSelectorMode === 'ORIGIN' ? 'Cambiar Origen' : 'Seleccionar Destino'}
-                                </h3>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {LOCATIONS_PRESETS.map(loc => {
-                                            const preset = LOCATIONS_CONFIG[loc] || { color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' };
-                                            return (
-                                            <button key={loc} onClick={() => handleLocationSelection(loc)} className={`p-3 rounded-xl text-sm font-bold border ${((locationSelectorMode === 'ORIGIN' && loc === lastLocation) || (locationSelectorMode === 'DESTINATION' && loc === inputDestination)) ? 'bg-blue-50 border-blue-500 text-blue-700' : `${preset.bg} ${preset.border} ${preset.color}`}`}>{loc}</button>
-                                            );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {showVehicleSelector && (
-                        <div className="absolute inset-0 bg-black/20 z-40 flex flex-col justify-end" onClick={() => setShowVehicleSelector(false)}>
-                            <div className="bg-white rounded-t-3xl p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
-                                <h3 className="text-sm font-bold text-slate-400 uppercase mb-4 text-center">Seleccionar Vehículo</h3>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {VEHICLE_TYPES.map(v => (
-                                        <button key={v.id} onClick={() => { setCurrentTrip({...currentTrip, vehicle: v.id}); setInputOdometer(vehicleOdometers[v.id].toString()); setShowVehicleSelector(false); }} className={`flex flex-col items-center justify-center p-4 rounded-2xl transition-all border-2 h-32 ${currentTrip.vehicle === v.id ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-[1.02]' : 'bg-slate-50 border-slate-100 text-slate-500 hover:border-slate-200 hover:bg-slate-100'}`}>
-                                            <Icon name={v.icon} size={32} className="mb-2"/>
-                                            <span className="font-bold text-xs text-center leading-tight">{v.label}</span>
-                                            <span className="font-mono text-[10px] opacity-80">{vehicleOdometers[v.id]} km</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="flex-1 overflow-y-auto scrollbar-hide p-5 pb-24">
-                        <h2 className="text-2xl font-bold text-slate-800 mb-4">Confirmar Salida</h2>
-                        <div className="space-y-4">
-                            <div className="bg-slate-50 p-3 rounded-2xl">
-                                <label className="text-xs font-bold text-slate-400 uppercase block mb-1">Odómetro Inicial</label>
-                                <input type="number" value={inputOdometer} onChange={e => setInputOdometer(e.target.value)} className="w-full bg-transparent text-4xl font-mono font-bold text-slate-800 outline-none" autoFocus onFocus={(e) => e.target.select()}/>
-                            </div>
-                            
-                            {/* Origin Selector */}
-                            <button onClick={() => { setLocationSelectorMode('ORIGIN'); setShowLocationSelector(true); }} className="w-full flex items-center justify-between p-4 border border-slate-200 rounded-2xl bg-white hover:bg-slate-50 transition-colors">
-                                <span className="text-slate-500 font-medium">Saliendo de:</span>
-                                <div className="flex items-center font-bold text-slate-800 bg-blue-50 px-3 py-1 rounded-full"><Icon name="MapPin" size={14} className="mr-1 text-blue-500"/>{lastLocation}<Icon name="Edit2" size={12} className="ml-2 text-blue-300"/></div>
-                            </button>
-
-                            {(lastLocation.toLowerCase().includes('cliente') || ['Otra', 'Otro'].includes(lastLocation)) && (
-                                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl animate-in slide-in-from-left">
-                                    <div className="flex items-center justify-between mb-2"><span className="font-bold text-blue-800 text-sm flex items-center"><Icon name="Car" size={16} className="mr-2"/> ¿Pagaste Estacionamiento?</span></div>
-                                    {currentTrip.tripExpenses.some(e => e.category === 'Estacionamiento') ? (
-                                        <div className="flex items-center text-emerald-600 font-bold text-sm"><Icon name="CheckCircle" size={16} className="mr-2"/> Registrado</div>
-                                    ) : (
-                                        <div className="flex gap-2"><button onClick={() => openExpenseModal('Estacionamiento')} className="flex-1 bg-white text-blue-600 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-blue-100">SÍ, REGISTRAR</button><button className="flex-1 text-slate-400 text-xs font-bold hover:text-slate-600">No</button></div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Destination Selector (NEW GRID INLINE) */}
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase block mb-3">¿Hacia dónde vas?</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {LOCATIONS_PRESETS.map(loc => {
-                                        const preset = LOCATIONS_CONFIG[loc] || { color: 'text-slate-600', bg: 'bg-white', border: 'border-slate-200', icon: 'MapPin' };
-                                        const Icon = preset.icon;
-                                        return (
-                                            <button
-                                                key={loc}
-                                                onClick={() => {
-                                                    if (loc === 'Cliente') {
-                                                        setTextModalTitle('Nombre del Cliente');
-                                                        setLocationSelectorMode('DESTINATION'); 
-                                                        setShowDestinationModal(true);
-                                                    } else if (loc === 'Otra') {
-                                                        setTextModalTitle('¿Hacia dónde vas?');
-                                                        setLocationSelectorMode('DESTINATION');
-                                                        setShowDestinationModal(true); 
-                                                    } else {
-                                                        setInputDestination(loc);
-                                                        confirmStartTrip(loc);
-                                                    }
-                                                }}
-                                                className={`
-                                                    flex flex-col items-center justify-center p-2 rounded-2xl border-2 transition-all h-16
-                                                    ${(inputDestination === loc || (loc === 'Cliente' && inputDestination.startsWith('Cliente')))
-                                                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg transform scale-[1.02]'
-                                                        : `${preset.bg} ${preset.border} ${preset.color} hover:border-emerald-300`
-                                                    }
-                                                `}
-                                            >
-                                                <Icon name={preset.icon} size={24} className="mb-1"/>
-                                                <span className="text-sm font-bold">{loc}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase block mb-2">Vehículo</label>
-                                <button onClick={() => setShowVehicleSelector(true)} className="w-full flex items-center p-3 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:bg-white hover:border-blue-200 transition-all text-left group">
-                                    <div className="p-2 bg-white rounded-full shadow-sm mr-3 text-blue-600 group-hover:scale-110 transition-transform"><Icon name={getVehicleInfo(currentTrip.vehicle).icon} size={24}/></div>
-                                    <span className="font-bold text-lg text-slate-700 flex-1">{getVehicleInfo(currentTrip.vehicle).label}</span>
-                                    <Icon name="ChevronDown" size={20} className="text-slate-400"/>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="absolute bottom-0 left-0 w-full bg-white/90 backdrop-blur-md p-5 border-t border-slate-100 z-10">
-                        <button onClick={() => setAppState('IDLE')} className="w-full bg-slate-100 text-slate-500 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-colors">Cancelar</button>
-                    </div>
-                </div>
-            )}
-
-            {/* VIEW: ACTIVE */}
-            {appState === 'ACTIVE' && (
-                <div className="flex flex-col h-screen bg-slate-900 text-white w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative">
-                    <div className="z-10 bg-slate-800/80 backdrop-blur-md p-4 flex justify-between items-center border-b border-slate-700">
-                        <div className="flex items-center text-emerald-400 animate-pulse"><div className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></div><span className="font-bold text-xs tracking-widest uppercase">En Ruta</span></div>
-                        {/* Modified Right Side with Timer and Cancel Button */}
-                        <div className="flex items-center gap-3">
-                            <div className="font-mono text-xl flex items-center"><Icon name="Clock" size={16} className="mr-2 text-slate-500"/>{formatTime(elapsedTime)}</div>
-                            <button onClick={() => setAppState('IDLE')} className="bg-slate-800 p-2 rounded-full text-rose-500 border border-slate-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-colors">
-                                <Icon name="X" size={20} />
-                            </button>
-                        </div>
-                    </div>
-                    <div className="flex-1 flex flex-col items-center justify-center p-6 gap-6 z-10">
-                        <div className="text-center">
-                            <div className="inline-flex items-center bg-slate-800 px-3 py-1 rounded-full text-xs font-bold text-slate-400 mb-2">
-                                {getVehicleInfo(currentTrip.vehicle).type === 'electric' ? <Icon name="Zap" size={12} className="mr-1 text-yellow-400"/> : <Icon name="Car" size={12} className="mr-1"/>}
-                                {getVehicleInfo(currentTrip.vehicle).label}
-                            </div>
-                            <p className="text-slate-400 text-xs uppercase tracking-wide">Origen</p>
-                            <h2 className="text-4xl font-bold">{currentTrip.origin}</h2>
-                            {currentTrip.destination && (
-                                <div className="mt-2 text-slate-400 text-sm animate-pulse">
-                                    <span className="opacity-60">Hacia: </span> <span className="text-white font-bold">{currentTrip.destination}</span>
-                                </div>
-                            )}
-                        </div>
-                        <Icon name="ArrowRight" className="text-slate-600 rotate-90" size={32}/>
-                        <div className="grid grid-cols-2 gap-4 w-full">
-                            <button onClick={() => openExpenseModal('Peaje')} className="bg-rose-600 hover:bg-rose-500 p-6 rounded-2xl flex flex-col items-center justify-center transition-all shadow-lg shadow-rose-900/40">
-                                <div className="bg-white/20 p-3 rounded-full mb-2"><Icon name="DollarSign" size={24} className="text-white"/></div>
-                                <span className="font-bold text-lg text-white">PEAJE</span>
-                                <span className="text-xs text-rose-200 mt-1 opacity-80">${formatMoney(getActiveConfig().tollPrice)} {getActiveConfig().currency}</span>
-                            </button>
-                            <button onClick={() => {
-                                if (getVehicleInfo(currentTrip.vehicle).type === 'electric') {
-                                    setShowChargeTypeModal(true);
-                                } else {
-                                    openExpenseModal('Carga Combustible');
-                                }
-                            }} className="bg-orange-600 hover:bg-orange-500 p-6 rounded-2xl flex flex-col items-center justify-center transition-all shadow-lg shadow-orange-900/40">
-                                {getVehicleInfo(currentTrip.vehicle).type === 'electric' ? <Icon name="Zap" size={28} className="text-yellow-300 mb-2"/> : <Icon name="Fuel" size={28} className="text-slate-300 mb-2"/>}
-                                <span className="font-bold text-lg text-white">{getVehicleInfo(currentTrip.vehicle).type === 'electric' ? 'CARGA' : 'NAFTA'}</span>
-                                <span className="text-xs text-orange-200 mt-1 opacity-80">
-                                    {getVehicleInfo(currentTrip.vehicle).type === 'electric' ? 'AC/DC' : `${formatMoney(getActiveConfig().fuelPrice)}/${getVehicleInfo(currentTrip.vehicle).type === 'electric' ? 'kWh' : 'L'}`}
-                                </span>
-                            </button>
-                        </div>
-                        <div className="w-full"><button onClick={() => setShowExpenseCategorySelector(true)} className="w-full py-4 border border-violet-700 text-violet-300 rounded-xl text-sm font-bold hover:bg-violet-900/30 flex items-center justify-center transition-all"><Icon name="Plus" size={18} className="mr-2"/> Gasto</button></div>
-                    </div>
-                    <div className="p-6 bg-slate-900 border-t border-slate-800 z-10">
-                        <button onClick={handleArrivePress} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-bold text-lg shadow-lg shadow-emerald-900/50 flex items-center justify-center hover:bg-emerald-500"><Icon name="MapPin" className="mr-2" fill="currentColor"/> LLEGAR A DESTINO</button>
-                    </div>
-                </div>
-            )}
-
-            {/* VIEW: ENDING */}
-            {appState === 'ENDING' && (
-                <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50">
-                    <div className="bg-emerald-600 p-6 text-white rounded-b-[2rem] shadow-lg">
-                        <h2 className="text-2xl font-bold">Llegada</h2>
-                        <p className="text-emerald-100 text-sm">Completa los datos de cierre.</p>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
-                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase">Odómetro Final</label>
-                                <span className={`font-mono font-bold ${(parseInt(inputOdometer) || 0) - currentTrip.startOdometer < 0 ? 'text-red-500' : 'text-emerald-600'}`}>{(parseInt(inputOdometer) || 0) - currentTrip.startOdometer} km</span>
-                            </div>
-                            <input type="number" value={inputOdometer} onChange={(e) => setInputOdometer(e.target.value)} className="w-full text-3xl font-mono font-bold text-slate-800 outline-none border-b-2 border-slate-100 focus:border-emerald-500" autoFocus onFocus={(e) => e.target.select()}/>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase block mb-2">Llegaste a:</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {LOCATIONS_PRESETS.map(loc => (
-                                    <button 
-                                        key={loc} 
-                                        onClick={() => { 
-                                            setLocationSelectorMode('DESTINATION');
-                                            handleLocationSelection(loc);
-                                        }} 
-                                        className={`py-3 px-1 rounded-xl text-xs font-bold border-2 transition-all ${inputDestination === loc || (loc === 'Cliente' && inputDestination.startsWith('Cliente:')) ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-white border-slate-100 text-slate-500'}`}
-                                    >
-                                        {loc}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase block mb-2">Gastos Adicionales</label>
-                            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-                                {EXPENSE_CATEGORIES.FOOD.map(item => (
-                                    <button key={item} onClick={() => openExpenseModal(item)} className="flex items-center flex-shrink-0 bg-white border border-slate-100 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 shadow-sm active:scale-95"><Icon name="Utensils" size={14} className="mr-2 text-orange-400"/> {item}</button>
-                                ))}
-                                {EXPENSE_CATEGORIES.LODGING.map(item => (
-                                    <button key={item} onClick={() => openExpenseModal(item)} className="flex items-center flex-shrink-0 bg-white border border-slate-100 px-3 py-2 rounded-lg text-sm font-medium text-slate-600 shadow-sm active:scale-95"><Icon name="Bed" size={14} className="mr-2 text-indigo-400"/> {item}</button>
-                                ))}
-                            </div>
-                        </div>
-                        {currentTrip.tripExpenses.length > 0 && (
-                            <div className="border-t border-slate-100 pt-4">
-                                <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">Resumen de Gastos</h4>
-                                {currentTrip.tripExpenses.map(exp => (
-                                    <div key={exp.id} className="flex flex-col mb-3 border-b border-slate-50 pb-2 last:border-0">
-                                        <div className="flex justify-between text-sm"><span className="text-slate-600 font-medium">{exp.category}</span><span className="font-mono font-bold text-slate-800">{exp.currency} {formatMoney(exp.amount)}</span></div>
-                                        {exp.notes && <div className="text-xs text-slate-400 mt-1 italic flex items-center"><Icon name="StickyNote" size={10} className="mr-1"/> {exp.notes}</div>}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <div className="p-6 bg-white border-t border-slate-100">
-                        <button disabled={!inputDestination || ((parseInt(inputOdometer) || 0) - currentTrip.startOdometer) < 0} onClick={confirmEndTrip} className="w-full bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400 text-white py-4 rounded-xl font-bold text-lg shadow-xl">CERRAR VIAJE</button>
-                    </div>
-                </div>
-            )}
-
-            {/* VIEW: SETTINGS */}
-            {appState === 'SETTINGS' && (
-                <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50 p-6">
-                    {showSaveConfirmation && (
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-xs text-center animate-in fade-in zoom-in duration-300">
-                                <div className="mx-auto bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mb-4 ring-8 ring-emerald-50"><Icon name="CheckCircle" size={40} className="text-emerald-600" /></div>
-                                <h3 className="text-xl font-bold text-slate-800 mb-2">¡Datos Guardados!</h3>
-                                <p className="text-slate-500 text-sm mb-6 leading-relaxed">Perfil actualizado.</p>
-                                <button onClick={() => setShowSaveConfirmation(false)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-bold transition-colors shadow-lg shadow-emerald-200">Entendido</button>
-                            </div>
-                        </div>
-                    )}
-                    <div className="flex items-center mb-6"><button onClick={() => setAppState('IDLE')} className="p-2 -ml-2 text-slate-400 hover:text-slate-600"><Icon name="ArrowRight" className="rotate-180" size={24}/></button><h2 className="text-2xl font-bold ml-2">Configuración</h2></div>
-                    <div className="grid grid-cols-2 gap-3 mb-4">{VEHICLE_TYPES.map(v => <button key={v.id} onClick={() => setEditingVehicleId(v.id)} className={`flex flex-col items-center justify-center p-4 rounded-2xl transition-all border-2 ${editingVehicleId === v.id ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-100'}`}><Icon name={v.icon} size={28}/><span className="text-xs mt-2">{v.label}</span></button>)}</div>
-                    <div className="space-y-4 flex-1 overflow-y-auto">
-                        <div><label className="text-xs font-bold text-slate-500">Peaje</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].tollPrice} onChange={e => updateVehicleConfig('tollPrice', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
-                        <div><label className="text-xs font-bold text-slate-500">Valor Km</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].kmValue} onChange={e => updateVehicleConfig('kmValue', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
-                        {getVehicleInfo(editingVehicleId).type === 'electric' ? (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs font-bold text-slate-500">Carga AC</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].fuelPriceAC} onChange={e => updateVehicleConfig('fuelPriceAC', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
-                                <div><label className="text-xs font-bold text-slate-500">Carga CC</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].fuelPriceDC} onChange={e => updateVehicleConfig('fuelPriceDC', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
-                            </div>
-                        ) : (
-                            <div><label className="text-xs font-bold text-slate-500">Combustible</label><input type="number" step="0.01" value={vehicleConfigs[editingVehicleId].fuelPrice} onChange={e => updateVehicleConfig('fuelPrice', e.target.value)} className="w-full border p-3 rounded-xl" onFocus={(e) => e.target.select()}/></div>
-                        )}
-                    </div>
-                    <button onClick={() => setShowSaveConfirmation(true)} className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-xl mt-4">Guardar</button>
-                </div>
-            )}
-
-            {/* VIEW: HISTORY */}
-            {appState === 'HISTORY' && (
-                <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-50">
-                    {/* Modal Edición de Viaje */}
-                    <TripEditModal 
-                        isOpen={!!editingTrip}
-                        trip={editingTrip}
-                        onClose={() => setEditingTrip(null)}
-                        onSave={saveEditedTrip}
-                        onDelete={deleteTrip}
-                    />
-                    
-                    <VisitEditModal 
-                        isOpen={!!editingVisit}
-                        visit={editingVisit}
-                        onClose={() => setEditingVisit(null)}
-                        onSave={saveEditedVisit}
-                        onDelete={deleteVisit}
-                    />
-
-                    <div className="bg-slate-800 text-white p-6 pb-8 rounded-b-[2rem] shadow-xl z-10"><div className="flex items-center mb-4"><button onClick={() => setAppState('IDLE')}><Icon name="ArrowRight" className="rotate-180" size={24}/></button><h2 className="text-2xl font-bold ml-2">Historial</h2></div></div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                        <div className="bg-white rounded-2xl shadow-lg p-1 flex mb-4">
-                            <button onClick={() => setHistoryTab('TRIPS')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${historyTab === 'TRIPS' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Viajes</button>
-                            <button onClick={() => setHistoryTab('VISITS')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${historyTab === 'VISITS' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Visitas</button>
-                            <button onClick={() => setHistoryTab('EXPENSES')} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${historyTab === 'EXPENSES' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Gastos</button>
-                        </div>
-                        <div className="space-y-3 pb-10 scrollbar-hide">
                             {historyTab === 'TRIPS' && (
                                 trips.length === 0 ? <div className="flex flex-col items-center justify-center h-full text-slate-400"><Icon name="Car" size={48} className="mb-4 opacity-20"/><p className="text-sm font-medium">Sin viajes registrados</p></div> : 
                                     trips.map(t => (
@@ -1128,21 +780,40 @@ const App = () => {
                                 visits.length === 0 ? <div className="flex flex-col items-center justify-center h-full text-slate-400"><Icon name="Users" size={48} className="mb-4 opacity-20"/><p className="text-sm font-medium">Sin visitas registradas</p></div> : 
                                     visits.map(v => (
                                         <div key={v.id} onClick={() => setEditingVisit(v)} className="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-500 flex flex-col gap-2 cursor-pointer active:scale-95 transition-transform">
-                                            <div className="flex justify-between items-center">
-                                                <h3 className="font-bold text-slate-800">{v.client}</h3>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h3 className="font-bold text-slate-800 text-lg">{v.client}</h3>
+                                                    <div className="flex items-center text-xs text-slate-400 font-medium mt-1">
+                                                        <Icon name="Calendar" size={12} className="mr-1"/>
+                                                        {/* Mostrar fecha del viaje de ida */}
+                                                        {v.inboundTrip ? v.inboundTrip.date : 'Fecha desconocida'}
+                                                    </div>
+                                                </div>
                                                 <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${v.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>{v.status === 'COMPLETED' ? 'Completada' : 'En Curso'}</span>
                                             </div>
-                                            <div className="text-xs text-slate-500 space-y-1 mt-1">
-                                                <div className="flex justify-between"><span>Ida: {v.inboundTrip.startTime} ({v.inboundTrip.distance}km)</span></div>
-                                                {v.outboundTrip ? <div className="flex justify-between border-t border-slate-50 pt-1"><span>Vuelta: {v.outboundTrip.endTime} ({v.outboundTrip.distance}km)</span></div> : <div className="text-amber-500 italic">Pendiente de retorno...</div>}
-                                                {/* Calculo de Costo Total de Visita */}
-                                                <div className="flex justify-between border-t border-slate-100 pt-2 mt-2 font-bold text-slate-700">
-                                                    <span>Total Gastos:</span>
-                                                    <span>
-                                                        ${formatMoney(v.inboundTrip.expenses.reduce((sum, e) => sum + (e.currency === 'UYU' ? e.amount : 0), 0) + 
-                                                            (v.outboundTrip ? v.outboundTrip.expenses.reduce((sum, e) => sum + (e.currency === 'UYU' ? e.amount : 0), 0) : 0))}
-                                                    </span>
+                                            
+                                            <div className="text-xs text-slate-500 space-y-2 mt-2 bg-slate-50 p-2 rounded-lg">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="flex items-center"><Icon name="ArrowRight" size={12} className="mr-1 text-blue-500"/> Ida</span>
+                                                    <span className="font-mono">{v.inboundTrip.startTime} ({v.inboundTrip.distance}km)</span>
                                                 </div>
+                                                {v.outboundTrip ? (
+                                                    <div className="flex justify-between items-center border-t border-slate-200 pt-2">
+                                                        <span className="flex items-center"><Icon name="ArrowRight" size={12} className="mr-1 text-emerald-500 rotate-180"/> Vuelta</span>
+                                                        <span className="font-mono">{v.outboundTrip.endTime} ({v.outboundTrip.distance}km)</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-amber-500 italic text-right">Pendiente de retorno...</div>
+                                                )}
+                                            </div>
+
+                                            {/* Calculo de Costo Total */}
+                                            <div className="flex justify-between border-t border-slate-100 pt-3 mt-1 font-bold text-slate-700">
+                                                <span>Total Gastos:</span>
+                                                <span className="text-blue-600">
+                                                    ${formatMoney(v.inboundTrip.expenses.reduce((sum, e) => sum + (e.currency === 'UYU' ? e.amount : 0), 0) + 
+                                                    (v.outboundTrip ? v.outboundTrip.expenses.reduce((sum, e) => sum + (e.currency === 'UYU' ? e.amount : 0), 0) : 0))}
+                                                </span>
                                             </div>
                                         </div>
                                     ))
@@ -1172,3 +843,548 @@ const App = () => {
         </div>
     );
 };
+}
+
+{
+type: uploaded file
+fileName: fernandomontesdeoca-beep/gemini_asistente_de_viaje_v2/Gemini_Asistente_de_Viaje_V2-636a63a77a61f17197d6aafe8f6d47cc379964a5/js/components/Modals.js
+fullContent:
+const { useState, useEffect } = React;
+
+// ==========================================
+// COMPONENTES DE MODALES
+// ==========================================
+
+const UpdatePromptModal = ({ isOpen, onClose, onConfirm, changes }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+                <div className="flex flex-col items-center text-center">
+                    <div className="bg-blue-100 p-3 rounded-full mb-4">
+                        <Icon name="Zap" size={32} className="text-blue-600"/>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Tarifas Actualizadas</h3>
+                    <p className="text-slate-500 mb-4 text-xs">Los valores oficiales en la web son distintos a tu configuración.</p>
+                    
+                    {/* TABLA DE COMPARACIÓN */}
+                    <div className="bg-slate-50 rounded-xl p-3 w-full mb-6">
+                        <div className="grid grid-cols-3 gap-1 text-xs font-bold text-slate-400 border-b border-slate-200 pb-2 mb-2 uppercase tracking-wider">
+                            <span className="text-left">Concepto</span>
+                            <span>Tuyo</span>
+                            <span>Nuevo</span>
+                        </div>
+                        <div className="space-y-2">
+                            {changes && changes.map((change, idx) => (
+                                <div key={idx} className="grid grid-cols-3 gap-1 text-sm items-center">
+                                    <span className="text-left font-bold text-slate-700 truncate">{change.label}</span>
+                                    <span className="text-slate-500 line-through decoration-rose-400">{change.oldVal}</span>
+                                    <span className="text-emerald-600 font-bold">{change.newVal}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="w-full flex gap-3">
+                        <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 text-sm">Mantener Míos</button>
+                        <button onClick={onConfirm} className="flex-1 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 text-sm">Actualizar Todo</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ChargeTypeModal = ({ isOpen, onClose, onSelectType }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200">
+                <div className="flex items-center mb-6 text-yellow-600">
+                    <Icon name="Zap" size={24} className="mr-2"/>
+                    <h3 className="text-xl font-bold text-slate-800">Tipo de Carga</h3>
+                </div>
+                <div className="flex flex-col gap-3">
+                     <button 
+                        onClick={() => onSelectType('AC')}
+                        className="bg-blue-50 text-blue-700 py-4 rounded-xl font-bold text-lg hover:bg-blue-100 transition-all active:scale-95 flex items-center justify-center"
+                      >
+                        <Icon name="Clock" size={20} className="mr-2"/> Carga Lenta (AC)
+                      </button>
+                      <button 
+                        onClick={() => onSelectType('DC')}
+                        className="bg-yellow-50 text-yellow-700 py-4 rounded-xl font-bold text-lg hover:bg-yellow-100 transition-all active:scale-95 flex items-center justify-center"
+                      >
+                        <Icon name="Zap" size={20} className="mr-2"/> Carga Rápida (CC)
+                      </button>
+                      <button 
+                        onClick={onClose}
+                        className="mt-2 text-slate-400 font-bold text-sm hover:text-slate-600"
+                      >
+                        Cancelar
+                      </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ParkingAskModal = ({ isOpen, onClose, onYes, onNo }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+      <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200">
+        <div className="flex items-center mb-4 text-blue-600">
+            <Icon name="Car" size={24} className="mr-2"/>
+            <h3 className="text-xl font-bold text-slate-800">¿Pagaste Estacionamiento?</h3>
+        </div>
+        <p className="text-slate-500 mb-6 font-medium">Saliendo de cliente. ¿Deseas registrar el gasto ahora?</p>
+        <div className="flex gap-3">
+             <button 
+                onClick={onNo}
+                className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-all active:scale-95"
+              >
+                No
+              </button>
+              <button 
+                onClick={onYes}
+                className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-emerald-700 transition-all active:scale-95"
+              >
+                Sí
+              </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DestinationInputModal = ({ isOpen, onClose, onConfirm, title, placeholder, initialValue = '' }) => {
+    const [value, setValue] = useState(initialValue);
+
+    useEffect(() => {
+        if (isOpen) setValue(initialValue);
+    }, [isOpen, initialValue]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200">
+                {/* CABECERA: Título y Botón Cerrar */}
+                <div className="flex justify-between items-start mb-6">
+                    <div className="flex items-center text-blue-600">
+                        <Icon name="MapPin" size={24} className="mr-2"/>
+                        <h3 className="text-xl font-bold text-slate-800">{title}</h3>
+                    </div>
+                    {/* Botón X para cancelar */}
+                    <button 
+                        onClick={onClose} 
+                        className="p-2 -mr-2 -mt-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                    >
+                        <Icon name="X" size={24}/>
+                    </button>
+                </div>
+
+                <input 
+                    type="text" 
+                    autoFocus
+                    value={value}
+                    onChange={e => setValue(e.target.value)}
+                    className="w-full text-lg font-medium text-slate-800 border-b-2 border-slate-200 focus:border-blue-500 outline-none py-2 mb-6"
+                    placeholder={placeholder}
+                    onKeyDown={(e) => { 
+                        if (e.key === 'Enter') {
+                            onConfirm(value);
+                            setValue('');
+                        }
+                    }}
+                />
+                <button 
+                    onClick={() => {
+                        onConfirm(value);
+                        setValue('');
+                    }}
+                    className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95"
+                >
+                    Confirmar e Iniciar
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const VisitEditModal = ({ isOpen, onClose, onSave, onDelete, visit }) => {
+    const [formData, setFormData] = useState(visit || {});
+    
+    useEffect(() => {
+        setFormData(visit || {});
+    }, [visit]);
+
+    if (!isOpen || !visit) return null;
+
+    // Helper para listar gastos de un viaje
+    const renderExpenses = (trip) => {
+        if (!trip || !trip.expenses || trip.expenses.length === 0) return null;
+        return trip.expenses.map((exp, idx) => (
+            <div key={idx} className="flex justify-between text-xs text-slate-600 border-b border-slate-100 last:border-0 py-1">
+                <span>{exp.category}</span>
+                <span className="font-mono font-bold">{exp.currency} {formatMoney(exp.amount)}</span>
+            </div>
+        ));
+    };
+
+    return (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                        <Icon name="Briefcase" size={20} className="mr-2 text-blue-600"/> Detalle de Visita
+                    </h3>
+                    <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><Icon name="X" size={20} className="text-slate-500"/></button>
+                </div>
+
+                <div className="space-y-4 overflow-y-auto pr-1 custom-scrollbar scrollbar-hide">
+                    {/* Edición de Nombre */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cliente</label>
+                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-3">
+                            <Icon name="User" size={16} className="text-slate-400 mr-2"/>
+                            <input 
+                                type="text" 
+                                value={formData.client || ''} 
+                                onChange={e => setFormData({...formData, client: e.target.value})} 
+                                className="bg-transparent w-full text-base font-bold text-slate-700 outline-none"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Resumen de Gastos - IDA */}
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <div className="flex items-center mb-2 text-blue-600 font-bold text-xs uppercase tracking-wide">
+                            <Icon name="ArrowRight" size={12} className="mr-1"/> Viaje de Ida
+                        </div>
+                        {renderExpenses(visit.inboundTrip) || <p className="text-xs text-slate-400 italic">Sin gastos registrados</p>}
+                    </div>
+
+                    {/* Resumen de Gastos - VUELTA */}
+                    {visit.outboundTrip && (
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div className="flex items-center mb-2 text-emerald-600 font-bold text-xs uppercase tracking-wide">
+                                <Icon name="ArrowRight" size={12} className="mr-1 rotate-180"/> Viaje de Vuelta
+                            </div>
+                            {renderExpenses(visit.outboundTrip) || <p className="text-xs text-slate-400 italic">Sin gastos registrados</p>}
+                        </div>
+                    )}
+                </div>
+
+                 <div className="mt-6 flex gap-3 pt-4 border-t border-slate-100">
+                    <button onClick={() => onDelete(formData.id)} className="p-4 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors">
+                        <Icon name="Trash2" size={20}/>
+                    </button>
+                    <button onClick={() => onSave(formData)} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all active:scale-95">
+                        Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const TripEditModal = ({ isOpen, onClose, onSave, onDelete, trip }) => {
+    const [formData, setFormData] = useState(trip || {});
+
+    useEffect(() => {
+        setFormData(trip || {});
+    }, [trip]);
+
+    // Función para recalcular distancia si cambian los odómetros
+    const handleOdometerChange = (type, val) => {
+        const newValue = parseInt(val) || 0;
+        const newFormData = { ...formData, [type]: newValue };
+        
+        // Si ambos odómetros tienen valor, calcular distancia
+        if (newFormData.startOdometer !== undefined && newFormData.endOdometer !== undefined) {
+            newFormData.distance = newFormData.endOdometer - newFormData.startOdometer;
+        }
+        setFormData(newFormData);
+    };
+
+    if (!isOpen || !trip) return null;
+
+    return (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                        <Icon name="Edit2" size={20} className="mr-2 text-blue-600"/> Editar Viaje
+                    </h3>
+                    <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><Icon name="X" size={20} className="text-slate-500"/></button>
+                </div>
+                
+                <div className="space-y-4 overflow-y-auto flex-1 pr-2 scrollbar-hide">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Fecha</label>
+                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                <Icon name="Calendar" size={14} className="text-slate-400 mr-2"/>
+                                <input type="text" value={formData.date || ''} onChange={e => setFormData({...formData, date: e.target.value})} className="bg-transparent w-full text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Distancia (km)</label>
+                            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                                <input type="number" value={formData.distance || 0} onChange={e => setFormData({...formData, distance: parseInt(e.target.value) || 0})} className="bg-transparent w-full text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Campos de Odómetro */}
+                    <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl">
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Odo. Inicio</label>
+                            <input type="number" value={formData.startOdometer || 0} onChange={e => handleOdometerChange('startOdometer', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm text-slate-700" onFocus={(e) => e.target.select()}/>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Odo. Fin</label>
+                            <input type="number" value={formData.endOdometer || 0} onChange={e => handleOdometerChange('endOdometer', e.target.value)} className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm text-slate-700" onFocus={(e) => e.target.select()}/>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Origen</label>
+                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                            <Icon name="MapPin" size={14} className="text-slate-400 mr-2"/>
+                            <input type="text" value={formData.origin || ''} onChange={e => setFormData({...formData, origin: e.target.value})} className="bg-transparent w-full text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Destino</label>
+                        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                            <Icon name="MapPin" size={14} className="text-slate-400 mr-2"/>
+                            <input type="text" value={formData.destination || ''} onChange={e => setFormData({...formData, destination: e.target.value})} className="bg-transparent w-full text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Inicio</label>
+                            <input type="text" value={formData.startTime || ''} onChange={e => setFormData({...formData, startTime: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Fin</label>
+                            <input type="text" value={formData.endTime || ''} onChange={e => setFormData({...formData, endTime: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none" onFocus={(e) => e.target.select()}/>
+                        </div>
+                    </div>
+                </div>
+        
+                <div className="mt-6 flex gap-3">
+                    <button onClick={() => onDelete(formData.id)} className="p-4 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"><Icon name="Trash2" size={20}/></button>
+                    <button onClick={() => onSave(formData)} className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all active:scale-95">Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ExpenseModal = ({ isOpen, onClose, onConfirm, expenseData, setExpenseData }) => {
+    if (!isOpen) return null;
+    
+    const isFuel = expenseData.category === 'Carga Combustible';
+    const isElectric = expenseData.category === 'Carga Eléctrica';
+    const isCharge = isFuel || isElectric;
+
+    return (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center">
+                        <Icon name="DollarSign" className="mr-2 text-violet-600"/> {expenseData.category}
+                    </h3>
+                    <button onClick={() => onClose()} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200"><Icon name="X" size={20} className="text-slate-500"/></button>
+                </div>
+                <div className="space-y-4">
+                     {/* CAMPOS EXTRA PARA CARGA (COMBUSTIBLE O ELECTRICA) */}
+                     {isCharge && (
+                        <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Odómetro</label>
+                                <input
+                                    type="number"
+                                    value={expenseData.odometer}
+                                    onChange={e => setExpenseData({...expenseData, odometer: e.target.value})}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-700"
+                                    onFocus={(e) => e.target.select()}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">{isElectric ? 'kWh' : 'Litros'}</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={expenseData.volume}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        let newAmount = expenseData.amount;
+                                        
+                                        // Si hay un precio unitario configurado y se escriben litros, calculamos el monto
+                                        if (expenseData.unitPrice && val) {
+                                            newAmount = (parseFloat(val) * parseFloat(expenseData.unitPrice)).toFixed(2);
+                                        }
+                                        
+                                        setExpenseData({...expenseData, volume: val, amount: newAmount});
+                                    }}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-700"
+                                    placeholder="0"
+                                    onFocus={(e) => e.target.select()}
+                                />
+                            </div>
+                        </div>
+                     )}
+
+                    <div className="flex gap-3">
+                        <div className="flex-1">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Monto</label>
+                            <input 
+                                type="number" 
+                                step="0.01"
+                                autoFocus
+                                value={expenseData.amount}
+                                onChange={e => setExpenseData({...expenseData, amount: e.target.value})}
+                                className="w-full text-2xl font-bold text-slate-900 bg-transparent border-b-2 border-slate-200 focus:border-violet-500 outline-none py-2"
+                                placeholder="0.00"
+                                onFocus={(e) => e.target.select()}
+                            />
+                        </div>
+                        <div className="w-1/3">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Moneda</label>
+                            <select 
+                                value={expenseData.currencyType}
+                                onChange={e => {
+                                    const newType = e.target.value;
+                                    setExpenseData({
+                                        ...expenseData, 
+                                        currencyType: newType,
+                                        currency: newType === 'Otro' ? '' : newType 
+                                    });
+                                }}
+                                className="w-full bg-slate-50 rounded-lg p-2 font-bold text-slate-700 mt-2"
+                            >
+                                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                    {expenseData.currencyType === 'Otro' && (
+                        <div className="animate-in fade-in slide-in-from-top-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase">Especifique Moneda</label>
+                            <input 
+                                type="text" 
+                                placeholder="Ej. BRL, ARS, EUR"
+                                value={expenseData.currency}
+                                onChange={e => setExpenseData({...expenseData, currency: e.target.value.toUpperCase()})}
+                                className="w-full bg-blue-50 border border-blue-100 rounded-lg p-3 font-bold text-blue-800 focus:border-blue-500 outline-none mt-1"
+                                onFocus={(e) => e.target.select()}
+                            />
+                        </div>
+                    )}
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Método de Pago</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {PAYMENT_METHODS.map(m => (
+                                <button key={m.id} onClick={() => setExpenseData({...expenseData, method: m.id})} className={`flex items-center p-2 rounded-lg text-xs font-bold transition-all ${expenseData.method === m.id ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-transparent'}`}>
+                                    <Icon name={m.icon} size={14} className="mr-2"/> {m.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Tipo</label>
+                        <div className="flex gap-2">
+                            {EXPENSE_TYPES.map(t => (
+                                <button key={t} onClick={() => setExpenseData({...expenseData, type: t})} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${expenseData.type === t ? 'bg-violet-100 text-violet-700 border border-violet-200' : 'bg-slate-50 text-slate-500'}`}>{t}</button>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Nota (Opcional)</label>
+                        <div className="relative">
+                            <Icon name="StickyNote" size={16} className="absolute left-3 top-3 text-slate-400"/>
+                            <textarea rows="2" value={expenseData.notes} onChange={e => setExpenseData({...expenseData, notes: e.target.value})} className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:border-violet-500 outline-none resize-none" placeholder="Ej. Almuerzo con cliente..." onFocus={(e) => e.target.select()}/>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                    {/* Mostrar botón eliminar si se está editando (tiene ID) */}
+                    {expenseData.id && (
+                        <button onClick={() => onClose('DELETE')} className="p-4 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors"><Icon name="Trash2" size={20}/></button>
+                    )}
+                    <button onClick={() => onConfirm()} className="flex-1 bg-violet-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-violet-200 hover:bg-violet-700 active:scale-95 transition-all">{expenseData.id ? 'Guardar Cambios' : 'Confirmar Gasto'}</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const CategorySelector = ({ isOpen, onClose, onSelect }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="absolute inset-0 z-[60] flex flex-col justify-end" onClick={onClose}>
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+            <div className="bg-white w-full rounded-t-[2.5rem] p-6 shadow-2xl relative z-10 animate-in slide-in-from-bottom duration-300 max-h-[75%] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 className="text-2xl font-bold text-slate-800 tracking-tight">Nuevo Gasto</h3>
+                        <p className="text-slate-400 text-xs font-medium">Selecciona una categoría</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition-colors"><Icon name="X" size={24}/></button>
+                </div>
+                <div className="space-y-8 overflow-y-auto pb-8 pr-1 custom-scrollbar scrollbar-hide">
+                    {Object.entries({ 'Alimentación': EXPENSE_CATEGORIES.FOOD, 'Alojamiento': EXPENSE_CATEGORIES.LODGING, 'Viaje & Transporte': EXPENSE_CATEGORIES.TRIP }).map(([label, items], idx) => (
+                        <div key={label}>
+                            <h4 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center tracking-wider">
+                                {idx === 0 ? <Icon name="Utensils" size={14} className="mr-2 text-orange-400"/> : idx === 1 ? <Icon name="Bed" size={14} className="mr-2 text-indigo-400"/> : <Icon name="Car" size={14} className="mr-2 text-blue-400"/>} {label}
+                            </h4>
+                            <div className={`grid ${items.length > 2 ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                                {items.map(item => (
+                                    <button key={item} onClick={() => onSelect(item)} className="group bg-slate-50 hover:bg-slate-100 border border-slate-100 hover:border-slate-200 text-slate-600 font-bold py-4 px-4 rounded-2xl text-sm transition-all text-left shadow-sm active:scale-95">
+                                        {item}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                    <div>
+                        <button onClick={() => onSelect('Otros')} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 font-bold py-4 px-4 rounded-2xl text-sm transition-all flex items-center justify-center border border-transparent hover:border-slate-300">
+                            <Icon name="ShoppingBag" size={18} className="mr-2"/> Otro / Varios
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const UpdateAppModal = ({ isOpen, onClose, onConfirm }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+                <div className="flex flex-col items-center text-center">
+                    <div className="bg-emerald-100 p-3 rounded-full mb-4">
+                        <Icon name="Zap" size={32} className="text-emerald-600"/>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">¡Nueva Versión Disponible!</h3>
+                    <p className="text-slate-500 mb-6 text-sm">Hay una actualización lista con mejoras y correcciones.</p>
+                    <div className="w-full flex gap-3">
+                        <button onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200">Más tarde</button>
+                        <button onClick={onConfirm} className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200">Actualizar Ahora</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+}
+Si hago clic en una visita en historial me abre el modal y muestra la información, si quiero ver los gastos no hace nada, creo que la idea es que muestre el modal de edición como ya lo hacía pero a este agregarle el detalle del total de gastos en la visita.
+Con respecto al formato de hora esta bien, lo veo en el modal 12:00.
