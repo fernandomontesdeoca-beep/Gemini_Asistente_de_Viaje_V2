@@ -845,7 +845,7 @@ const App = () => {
 };
 
 
-{
+
 type: uploaded file
 fileName: fernandomontesdeoca-beep/gemini_asistente_de_viaje_v2/Gemini_Asistente_de_Viaje_V2-636a63a77a61f17197d6aafe8f6d47cc379964a5/js/components/Modals.js
 fullContent:
@@ -1387,4 +1387,5 @@ const UpdateAppModal = ({ isOpen, onClose, onConfirm }) => {
 };
 
 Si hago clic en una visita en historial me abre el modal y muestra la información, si quiero ver los gastos no hace nada, creo que la idea es que muestre el modal de edición como ya lo hacía pero a este agregarle el detalle del total de gastos en la visita.
+
 Con respecto al formato de hora esta bien, lo veo en el modal 12:00.
