@@ -172,33 +172,44 @@ window.App = () => {
         window.dbHelper.set('google_script_url', googleScriptUrl);
     }}, [trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, appState, currentTrip, googleScriptUrl, dataLoaded]);
 
-    // --- CLOUD SYNC HANDLER (UPDATED) ---
+    // --- SYNC BIDIRECCIONAL INTELIGENTE ---
     const handleCloudSync = async () => {
         if (!googleScriptUrl) return;
         setIsSyncing(true);
         try {
-            // Empaquetamos TODO para que el script lo guarde
-            const dataToSync = {
-                trips,
-                expenses,
-                visits,
-                vehicleOdometers,
-                vehicleConfigs,
-                lastLocation
-            };
+            const dataToSync = { trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation };
             
-            if (!window.GoogleSheetSync) throw new Error("El servicio de sincronización no está cargado.");
+            if (!window.GoogleSheetSync) throw new Error("Servicio de sincronización no cargado.");
             
             const result = await window.GoogleSheetSync.syncData(googleScriptUrl, dataToSync);
             
-            if (result.status === 'success') {
-                alert("✅ Sincronización completa (Viajes, Configuración y Estado).");
+            if (result.status === 'success' && result.data) {
+                const cloud = result.data;
+                
+                // ACTUALIZAR ESTADO LOCAL CON DATOS DE LA NUBE
+                if (cloud.trips) setTrips(cloud.trips);
+                if (cloud.expenses) setExpenses(cloud.expenses);
+                if (cloud.vehicleOdometers) setVehicleOdometers(cloud.vehicleOdometers);
+                if (cloud.vehicleConfigs) setVehicleConfigs(cloud.vehicleConfigs);
+                
+                // Reconstruir Visitas (Hydration)
+                // La nube devuelve IDs, pero la App necesita objetos completos en inboundTrip/outboundTrip
+                if (cloud.visits && cloud.trips) {
+                    const hydratedVisits = cloud.visits.map(v => ({
+                        ...v,
+                        inboundTrip: cloud.trips.find(t => String(t.id) === String(v.inboundTripId)) || null,
+                        outboundTrip: cloud.trips.find(t => String(t.id) === String(v.outboundTripId)) || null
+                    }));
+                    setVisits(hydratedVisits);
+                }
+
+                alert("✅ Sincronización completada. Datos actualizados.");
             } else {
-                alert("⚠️ " + (result.message || "Error desconocido en el servidor."));
+                alert("⚠️ " + (result.message || "Error en el servidor."));
             }
         } catch (error) {
             console.error(error);
-            alert("❌ Error de conexión: " + error.message);
+            alert("❌ Error: " + error.message);
         } finally {
             setIsSyncing(false);
         }
@@ -291,20 +302,34 @@ window.App = () => {
             expenses: currentTrip.tripExpenses,
             status: 'CLOSED',
             startOdometer: currentTrip.startOdometer,
-            endOdometer: endOdo
+            endOdometer: endOdo,
+            updatedAt: new Date().toISOString() // TIMESTAMP AGREGADO
         };
         setTrips(prev => [newTrip, ...prev]);
         
         if (newTrip.origin.toLowerCase().startsWith('cliente')) {
             setVisits(prev => {
                 const idx = prev.findIndex(v => v.client === newTrip.origin && v.status === 'OPEN');
-                if (idx !== -1) { const updated = [...prev]; updated[idx] = { ...updated[idx], outboundTrip: newTrip, status: 'COMPLETED' }; return updated; }
+                if (idx !== -1) { 
+                    const updated = [...prev]; 
+                    updated[idx] = { ...updated[idx], outboundTrip: newTrip, status: 'COMPLETED', updatedAt: new Date().toISOString() }; 
+                    return updated; 
+                }
                 return prev;
             });
         }
         if (newTrip.destination.toLowerCase().startsWith('cliente')) {
-            setVisits(prev => [{ id: Date.now() + '_visit', client: newTrip.destination, date: newTrip.date, inboundTrip: newTrip, outboundTrip: null, status: 'OPEN' }, ...prev]);
+            setVisits(prev => [{ 
+                id: Date.now() + '_visit', 
+                client: newTrip.destination, 
+                date: newTrip.date, 
+                inboundTrip: newTrip, 
+                outboundTrip: null, 
+                status: 'OPEN', 
+                updatedAt: new Date().toISOString() 
+            }, ...prev]);
         }
+
         setVehicleOdometers(prev => ({ ...prev, [currentTrip.vehicle]: endOdo }));
         setLastLocation(inputDestination);
         setAppState('IDLE');
@@ -413,7 +438,8 @@ window.App = () => {
             notes: expenseModalData.notes,
             odometer: expenseModalData.odometer,
             volume: expenseModalData.volume,
-            tripId: currentTrip.startTime ? 'current_trip' : 'loose_expense'
+            tripId: currentTrip.startTime ? 'current_trip' : 'loose_expense',
+            updatedAt: new Date().toISOString() // TIMESTAMP AGREGADO
         };
 
         const isCharge = ['Carga Combustible', 'Carga Eléctrica'].includes(expenseModalData.category);
@@ -442,6 +468,30 @@ window.App = () => {
         }
     };
     
+    // --- EDIT HANDLERS (UPDATED WITH TIMESTAMPS) ---
+    const saveEditedTrip = (updatedTrip) => {
+        const tripWithDate = { ...updatedTrip, updatedAt: new Date().toISOString() };
+        setTrips(prev => prev.map(t => t.id === updatedTrip.id ? tripWithDate : t));
+        setEditingTrip(null);
+    };
+
+    const saveEditedVisit = (updatedVisit) => {
+        const visitWithDate = { ...updatedVisit, updatedAt: new Date().toISOString() };
+        setVisits(prev => prev.map(v => v.id === updatedVisit.id ? visitWithDate : v));
+        setEditingVisit(null);
+    };
+
+    const deleteTrip = (tripId) => {
+        setTrips(prev => prev.filter(t => t.id !== tripId));
+        setEditingTrip(null);
+    };
+    
+    const deleteVisit = (visitId) => {
+        setVisits(prev => prev.filter(v => v.id !== visitId));
+        setEditingVisit(null);
+    };
+
+    // --- RENDER ---
     return (
         <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-100">
             <UpdateAppModal isOpen={showUpdateAppModal} onClose={() => setShowUpdateAppModal(false)} onConfirm={handleAppUpdateConfirm} />
@@ -501,24 +551,19 @@ window.App = () => {
                 isOpen={!!editingTrip}
                 trip={editingTrip}
                 onClose={() => setEditingTrip(null)}
-                onSave={(updated) => {
-                    setTrips(prev => prev.map(t => t.id === updated.id ? updated : t));
-                    setEditingTrip(null);
-                }}
-                onDelete={(id) => {
-                    setTrips(prev => prev.filter(t => t.id !== id));
-                    setEditingTrip(null);
-                }}
+                onSave={saveEditedTrip}
+                onDelete={deleteTrip}
             />
             
             <VisitEditModal 
                 isOpen={!!editingVisit}
                 visit={editingVisit}
                 onClose={() => setEditingVisit(null)}
-                onSave={(updated) => { setVisits(prev => prev.map(v => v.id === updated.id ? updated : v)); setEditingVisit(null); }}
-                onDelete={(id) => { setVisits(prev => prev.filter(v => v.id !== id)); setEditingVisit(null); }}
+                onSave={saveEditedVisit}
+                onDelete={deleteVisit}
             />
 
+            {/* ROUTER DE VISTAS */}
             {appState === 'IDLE' && (
                 <HomeView 
                     vehicleOdometers={vehicleOdometers} dashboardVehicleId={dashboardVehicleId} lastLocation={lastLocation} trips={trips}
