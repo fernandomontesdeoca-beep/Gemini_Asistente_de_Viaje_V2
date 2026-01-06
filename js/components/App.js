@@ -114,6 +114,27 @@ window.App = () => {
         window.location.reload(true);
     };
 
+    // --- HANDLERS PARA RESUMIR VIAJE (DEFINIDOS ANTES DE USAR) ---
+    const confirmResume = () => {
+        if (pendingResumeData) {
+            setAppState(pendingResumeData.appState);
+            const restoredTrip = { ...pendingResumeData.currentTrip };
+            if (restoredTrip.startTime) {
+                restoredTrip.startTime = new Date(restoredTrip.startTime);
+            }
+            setCurrentTrip(restoredTrip);
+        }
+        setShowResumeModal(false);
+        setPendingResumeData(null);
+    };
+
+    const discardResume = () => {
+        window.dbHelper.set('app_state_persist', null);
+        setShowResumeModal(false);
+        setPendingResumeData(null);
+        setAppState('IDLE');
+    };
+
     // --- DB LOAD & SAVE ---
     useEffect(() => {
         const loadData = async () => {
@@ -131,8 +152,6 @@ window.App = () => {
                 if (sLoc) setLastLocation(sLoc);
                 if (sConfigs) {
                     setVehicleConfigs(sConfigs);
-                    // Check rates logic... (simplificado)
-                    // ...
                 }
                 if (sState && sState.appState === 'ACTIVE') {
                      setPendingResumeData(sState);
@@ -151,8 +170,25 @@ window.App = () => {
         window.dbHelper.set('odometers', vehicleOdometers);
         window.dbHelper.set('configs', vehicleConfigs);
         window.dbHelper.set('lastLocation', lastLocation);
-        window.dbHelper.set('app_state_persist', { appState, currentTrip }); // Auto-save state
+        window.dbHelper.set('app_state_persist', { appState, currentTrip }); 
     }}, [trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, appState, currentTrip, dataLoaded]);
+
+    // --- TIMER ---
+    useEffect(() => {
+        let interval;
+        if (appState === 'ACTIVE' && currentTrip.startTime) {
+            const startTimestamp = new Date(currentTrip.startTime).getTime();
+            setElapsedTime(Math.floor((Date.now() - startTimestamp) / 1000));
+            interval = setInterval(() => {
+                const now = Date.now();
+                const diff = Math.floor((now - startTimestamp) / 1000);
+                setElapsedTime(diff > 0 ? diff : 0);
+            }, 1000);
+        } else {
+            setElapsedTime(0);
+        }
+        return () => clearInterval(interval);
+    }, [appState, currentTrip.startTime]);
 
     // --- LOGIC HELPERS ---
     const getActiveConfig = () => {
@@ -218,7 +254,6 @@ window.App = () => {
         };
         setTrips(prev => [newTrip, ...prev]);
         
-        // Logic de Visitas (simplificada para brevedad)
         if (newTrip.origin.toLowerCase().startsWith('cliente')) {
             setVisits(prev => {
                 const idx = prev.findIndex(v => v.client === newTrip.origin && v.status === 'OPEN');
@@ -234,6 +269,50 @@ window.App = () => {
         setLastLocation(inputDestination);
         setAppState('IDLE');
         window.dbHelper.set('app_state_persist', null);
+    };
+
+    const updateDashboardOdometer = (newVal) => {
+        const val = parseInt(newVal);
+        if (!isNaN(val)) {
+            setVehicleOdometers(prev => ({ ...prev, [dashboardVehicleId]: val }));
+        }
+        setShowOdometerEditor(false);
+    };
+
+    const handleLocationSelection = (loc) => {
+        if (locationSelectorMode === 'ORIGIN') {
+            if (loc === 'Cliente') {
+                setTextModalTitle('Nombre del Cliente');
+                setShowDestinationModal(true);
+            } else if (loc === 'Otra') {
+                setTextModalTitle('Punto de Partida');
+                setShowDestinationModal(true);
+            } else {
+                setLastLocation(loc);
+                setShowLocationSelector(false);
+            }
+        } else {
+            if (loc === 'Cliente') {
+                setTextModalTitle('Nombre del Cliente');
+                setShowDestinationModal(true);
+            } else if (loc === 'Otra') {
+                setTextModalTitle('¿Hacia dónde vas?');
+                setShowDestinationModal(true); 
+            } else {
+                setInputDestination(loc);
+                if (appState === 'STARTING') {
+                    confirmStartTrip(loc);
+                }
+                setShowLocationSelector(false);
+            }
+        }
+    }
+
+    const updateVehicleConfig = (field, value) => {
+        setVehicleConfigs(prev => ({
+            ...prev,
+            [editingVehicleId]: { ...prev[editingVehicleId], [field]: value }
+        }));
     };
 
     // --- IMPORT/EXPORT ---
@@ -335,18 +414,8 @@ window.App = () => {
     // --- LAYOUT ---
     return (
         <div className="flex flex-col h-screen w-full max-w-md mx-auto shadow-2xl overflow-hidden font-sans relative bg-slate-100">
-            {/* MODALES GLOBALES */}
             <UpdateAppModal isOpen={showUpdateAppModal} onClose={() => setShowUpdateAppModal(false)} onConfirm={handleAppUpdateConfirm} />
-            <ResumeTripModal isOpen={showResumeModal} onResume={() => {
-                if(pendingResumeData) {
-                    setAppState(pendingResumeData.appState);
-                    const restored = {...pendingResumeData.currentTrip};
-                    if(restored.startTime) restored.startTime = new Date(restored.startTime);
-                    setCurrentTrip(restored);
-                }
-                setShowResumeModal(false);
-            }} onDiscard={discardResume} />
-            
+            <ResumeTripModal isOpen={showResumeModal} onResume={confirmResume} onDiscard={discardResume} />
             <DataImportModal isOpen={showDataImportModal} onClose={() => setShowDataImportModal(false)} onImport={() => document.getElementById('file-upload').click()} />
             <input type="file" id="file-upload" className="hidden" accept=".json" onChange={handleImportData} />
 
@@ -364,7 +433,6 @@ window.App = () => {
             />
 
             <CategorySelector isOpen={showExpenseCategorySelector} onClose={() => setShowExpenseCategorySelector(false)} onSelect={openExpenseModalLogic} />
-            
             <ChargeTypeModal isOpen={showChargeTypeModal} onClose={() => setShowChargeTypeModal(false)} onSelectType={handleChargeTypeSelection} />
 
             <DestinationInputModal
@@ -405,7 +473,6 @@ window.App = () => {
                 onClose={() => setEditingTrip(null)}
                 onSave={(updated) => {
                     setTrips(prev => prev.map(t => t.id === updated.id ? updated : t));
-                    // Update vehicle odo if latest trip... (simplified logic)
                     setEditingTrip(null);
                 }}
                 onDelete={(id) => {
