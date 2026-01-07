@@ -1,8 +1,7 @@
 // ==========================================
-// BACKEND: ASISTENTE DE VIAJE v3.3.0
+// BACKEND: ASISTENTE DE VIAJE v3.3.1 (Anti-Ghost)
 // ==========================================
 
-// Definición de columnas (Schema)
 const SCHEMA = {
   TRIPS: ["id", "date", "startTime", "endTime", "origin", "destination", "distance", "vehicle", "status", "startOdometer", "endOdometer", "updatedAt", "_deleted"],
   EXPENSES: ["id", "date", "time", "category", "amount", "currency", "method", "type", "notes", "odometer", "volume", "tripId", "updatedAt", "_deleted"],
@@ -12,48 +11,33 @@ const SCHEMA = {
   APP_STATE: ["key", "value", "updatedAt"]
 };
 
-// Nombres de las pestañas
 const SHEET_NAMES = {
-  TRIPS: "Trips",
-  EXPENSES: "Expenses",
-  VISITS: "Visits",
-  ODOMETERS: "Odometers",
-  CONFIGS: "Configs",
-  APP_STATE: "AppState"
+  TRIPS: "Trips", EXPENSES: "Expenses", VISITS: "Visits", 
+  ODOMETERS: "Odometers", CONFIGS: "Configs", APP_STATE: "AppState"
 };
 
 function doPost(e) {
-  // Lock para evitar colisiones entre dispositivos
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) {
-    return response("error", "Servidor ocupado, intenta en unos segundos.");
-  }
+  if (!lock.tryLock(30000)) return response("error", "Servidor ocupado.");
 
   try {
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // === COMANDO ESPECIAL: RESET TOTAL ===
+    // === RESET DE EMERGENCIA ===
     if (data.command === "RESET_ALL") {
       const sheets = ss.getSheets();
       sheets.forEach(sheet => {
-        // Limpiamos todas las hojas gestionadas
-        if (Object.values(SHEET_NAMES).includes(sheet.getName())) {
-             sheet.clear();
-        }
+        if (Object.values(SHEET_NAMES).includes(sheet.getName())) sheet.clear();
       });
-      return response("success", "Base de datos en la nube eliminada completamente.");
+      return response("success", "Base de datos reseteada.");
     }
 
-    // === SINCRONIZACIÓN ESTÁNDAR ===
-    
-    // 1. Viajes
+    // === SINCRONIZACIÓN ===
     syncTable(ss, SHEET_NAMES.TRIPS, data.trips, SCHEMA.TRIPS);
-    
-    // 2. Gastos
     syncTable(ss, SHEET_NAMES.EXPENSES, data.expenses, SCHEMA.EXPENSES);
     
-    // 3. Visitas (Aplanamos IDs)
+    // Aplanar Visitas
     const visitsFlat = (data.visits || []).map(v => ({
       ...v,
       inboundTripId: v.inboundTrip ? v.inboundTrip.id : (v.inboundTripId || ""),
@@ -61,19 +45,17 @@ function doPost(e) {
     }));
     syncTable(ss, SHEET_NAMES.VISITS, visitsFlat, SCHEMA.VISITS);
 
-    // 4. Odómetros
+    // Tablas simples
     if(data.vehicleOdometers) {
        const odoList = Object.entries(data.vehicleOdometers).map(([k,v]) => ({id:k, value:v, updatedAt: new Date().toISOString()}));
        syncTable(ss, SHEET_NAMES.ODOMETERS, odoList, SCHEMA.ODOMETERS);
     }
-
-    // 5. Configuraciones
     if(data.vehicleConfigs) {
        const cfgList = Object.entries(data.vehicleConfigs).map(([k,v]) => ({...v, id:k, updatedAt: new Date().toISOString()}));
        syncTable(ss, SHEET_NAMES.CONFIGS, cfgList, SCHEMA.CONFIGS);
     }
     
-    // 6. Estado de la App
+    // Estado App
     if (data.currentTripState) {
         const stateList = [
             { key: "lastLocation", value: data.lastLocation, updatedAt: new Date().toISOString() },
@@ -86,17 +68,15 @@ function doPost(e) {
         syncTable(ss, SHEET_NAMES.APP_STATE, stateList, SCHEMA.APP_STATE);
     }
 
-    // === PREPARAR RESPUESTA (SYNC BIDIRECCIONAL) ===
-    const responseData = {
+    // === RESPUESTA ===
+    return response("success", "OK", {
       trips: readTable(ss, SHEET_NAMES.TRIPS, SCHEMA.TRIPS),
       expenses: readTable(ss, SHEET_NAMES.EXPENSES, SCHEMA.EXPENSES),
-      visits: readTable(ss, SHEET_NAMES.VISITS, SCHEMA.VISITS), // Visitas planas con IDs
+      visits: readTable(ss, SHEET_NAMES.VISITS, SCHEMA.VISITS),
       vehicleOdometers: readSimplePair(ss, SHEET_NAMES.ODOMETERS),
       vehicleConfigs: readConfigs(ss, SHEET_NAMES.CONFIGS, SCHEMA.CONFIGS),
       appStateData: readSimplePair(ss, SHEET_NAMES.APP_STATE, "key")
-    };
-
-    return response("success", "Sincronizado correctamente", responseData);
+    });
 
   } catch (error) {
     return response("error", error.toString());
@@ -105,101 +85,101 @@ function doPost(e) {
   }
 }
 
-// === ALGORITMO DE FUSIÓN (LAST WRITE WINS) ===
+// === ALGORITMO ANTI-DUPLICADOS ===
 function syncTable(ss, sheetName, incomingItems, headers) {
   if (!incomingItems || incomingItems.length === 0) return;
   
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) { sheet = ss.insertSheet(sheetName); sheet.appendRow(headers); }
   
-  const dataRange = sheet.getDataRange();
-  const values = dataRange.getValues();
+  const lastRow = sheet.getLastRow();
+  let dbMap = new Map(); // Mapa ID -> Fila
   
-  // Mapa de IDs existentes en la nube: ID -> Fila
-  let dbMap = new Map();
-  if (values.length > 1) {
-      const storedData = values.slice(1);
-      storedData.forEach((row, idx) => {
-          // Asumimos siempre que la columna 0 es el ID único
-          dbMap.set(String(row[0]), idx + 2); // +2 por header y base 1
+  // Leer datos existentes
+  if (lastRow > 1) {
+      // Leemos solo la columna de IDs para velocidad (Columna 1)
+      const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues(); 
+      ids.forEach((row, idx) => {
+          // Guardamos ID como String limpio
+          dbMap.set(String(row[0]).trim(), idx + 2); 
       });
   }
 
-  // Indices de columnas clave
   const dateIdx = headers.indexOf("updatedAt");
 
   incomingItems.forEach(item => {
-    const strId = String(item[headers[0]]); // ID del item entrante
+    // Usar el primer campo como ID y limpiarlo
+    const idVal = item[headers[0]];
+    if(idVal === undefined || idVal === null) return; // Skip si no hay ID
+    const strId = String(idVal).trim();
     
     let writeRow = null;
-    let shouldWrite = true; // Por defecto escribimos (si es nuevo)
+    let shouldWrite = true;
 
+    // 1. CHEQUEO: ¿Existe en el Mapa (Nube o Cache Local)?
     if (dbMap.has(strId)) {
         const rowNum = dbMap.get(strId);
         
-        // Si existe, comparamos fechas para ver cuál es más reciente
+        // 2. CHEQUEO: ¿Es más nuevo?
         if (dateIdx > -1) {
-            const existingDateStr = sheet.getRange(rowNum, dateIdx + 1).getValue();
-            const existingDate = new Date(existingDateStr || 0).getTime();
+            // Leemos fecha de la celda específica solo si es necesario (Optimización)
+            const existingDateCell = sheet.getRange(rowNum, dateIdx + 1).getValue();
+            const existingDate = new Date(existingDateCell || 0).getTime();
             const incomingDate = new Date(item.updatedAt || 0).getTime();
             
-            // Si la nube tiene un dato más nuevo (fecha mayor), NO sobrescribimos
-            if (incomingDate <= existingDate) {
-                shouldWrite = false;
-            }
+            if (incomingDate <= existingDate) shouldWrite = false; // Nube gana
         }
-        
         if (shouldWrite) writeRow = rowNum;
     }
 
     if (shouldWrite) {
-        // Mapeamos el objeto al orden de las columnas
         const rowArray = headers.map(h => {
              let val = item[h];
+             // Convertir fechas a string ISO para evitar problemas de formato Excel
+             if (val instanceof Date) return val.toISOString();
              return (val === undefined || val === null) ? "" : val;
         });
 
         if (writeRow) {
-            // Actualizar fila existente
             sheet.getRange(writeRow, 1, 1, headers.length).setValues([rowArray]);
         } else {
-            // Insertar nueva fila
             sheet.appendRow(rowArray);
+            // 3. ACTUALIZACIÓN CRÍTICA DEL MAPA
+            // Registramos el nuevo ID inmediatamente para que si viene duplicado en este mismo lote,
+            // se detecte como "Existente" y se actualice en lugar de crear otra fila.
+            dbMap.set(strId, sheet.getLastRow()); 
         }
     }
   });
 }
 
-// === LECTURA DE DATOS ===
 function readTable(ss, sheetName, headers) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() < 2) return [];
-  const raw = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  // Leemos todo como texto plano para evitar formatos científicos
+  const raw = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getDisplayValues();
   return raw.map(row => {
       let obj = {}; 
-      headers.forEach((h, i) => obj[h] = row[i]); 
+      headers.forEach((h, i) => {
+          // Intentar recuperar tipos básicos
+          let val = row[i];
+          if(h === "startOdometer" || h === "endOdometer" || h === "amount" || h === "distance") {
+             val = val ? parseFloat(val) : 0;
+          }
+          obj[h] = val;
+      }); 
       return obj; 
   });
 }
 
 function readSimplePair(ss, sheetName, keyName="id") {
     const list = readTable(ss, sheetName, [keyName, "value"]);
-    let obj = {}; 
-    list.forEach(i => obj[i[keyName]] = i.value); 
-    return obj;
+    let obj = {}; list.forEach(i => obj[i[keyName]] = i.value); return obj;
 }
-
 function readConfigs(ss, sheetName, headers) {
     const list = readTable(ss, sheetName, headers);
-    let obj = {}; 
-    list.forEach(i => { const id = i.id; delete i.id; obj[id] = i; }); 
-    return obj;
+    let obj = {}; list.forEach(i => { const id = i.id; delete i.id; obj[id] = i; }); return obj;
 }
-
 function response(status, msg, data=null) {
-    return ContentService.createTextOutput(JSON.stringify({ 
-      status: status, 
-      message: msg, 
-      data: data 
-    })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ status: status, message: msg, data: data })).setMimeType(ContentService.MimeType.JSON);
 }

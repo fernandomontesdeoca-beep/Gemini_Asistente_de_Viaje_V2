@@ -36,7 +36,6 @@ window.App = () => {
     const [pendingResumeData, setPendingResumeData] = useState(null);
     const [showDataImportModal, setShowDataImportModal] = useState(false);
     
-    // Estado de Sincronización
     const [googleScriptUrl, setGoogleScriptUrl] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -51,7 +50,6 @@ window.App = () => {
     
     const [lastLocation, setLastLocation] = useState('Casa');
     
-    // DATOS (Arrays)
     const [trips, setTrips] = useState([]);
     const [expenses, setExpenses] = useState([]);
     const [visits, setVisits] = useState([]);
@@ -77,7 +75,6 @@ window.App = () => {
     const [textModalTitle, setTextModalTitle] = useState('Nombre del Cliente');
     const [pendingStartData, setPendingStartData] = useState(null);
 
-    // Configs
     const [vehicleConfigs, setVehicleConfigs] = useState({
         PERSONAL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '14.24', currency: 'UYU' },
         COMPANY_FUEL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '12.00', currency: 'UYU' },
@@ -99,7 +96,7 @@ window.App = () => {
     const [gapKm, setGapKm] = useState(0);
     const [elapsedTime, setElapsedTime] = useState(0);
 
-    // --- FUNCIONES CRÍTICAS DE RESUME (Definidas antes de usarse en Effects o Render) ---
+    // --- FUNCIONES DE RESUME (Scope Correcto) ---
     const confirmResume = () => {
         if (pendingResumeData) {
             setAppState(pendingResumeData.appState);
@@ -127,7 +124,7 @@ window.App = () => {
                     const data = await response.json();
                     if (data.version !== APP_VERSION) setShowUpdateAppModal(true);
                 }
-            } catch (error) { console.warn("Versión check fallido:", error); }
+            } catch (error) { console.warn("Check version error", error); }
         };
         if (appState === 'IDLE') checkAppVersion();
     }, [appState]);
@@ -176,20 +173,32 @@ window.App = () => {
         window.location.reload(true);
     };
 
-    // --- SYNC ---
+    // --- SYNC MEJORADO (Detecta Estado Real) ---
     const handleCloudSync = async (silent = false) => {
         if (!googleScriptUrl) { if(!silent) alert("Falta URL de Google."); return; }
         setIsSyncing(true);
         try {
+            // LÓGICA DE ESTADO REAL:
+            // Si hay un startTime definido, significa que el viaje está activo (aunque estemos en Settings)
+            let realStatus = appState;
+            if (currentTrip.startTime && (appState === 'SETTINGS' || appState === 'HISTORY' || appState === 'STARTING')) {
+                realStatus = 'ACTIVE';
+            }
+
             const dataToSync = { 
                 trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, 
-                currentTripState: { appState, currentTrip, lastUpdated: new Date().toISOString() } 
+                currentTripState: { 
+                    appState: realStatus, // Enviamos el estado real
+                    currentTrip, 
+                    lastUpdated: new Date().toISOString() 
+                } 
             };
             
             const result = await window.GoogleSheetSync.syncData(googleScriptUrl, dataToSync);
             
             if (result.status === 'success' && result.data) {
                 const cloud = result.data;
+                // MERGE DATA
                 if (cloud.trips) setTrips(cloud.trips);
                 if (cloud.expenses) setExpenses(cloud.expenses);
                 if (cloud.visits && cloud.trips) {
@@ -203,8 +212,34 @@ window.App = () => {
                 if (cloud.vehicleOdometers) setVehicleOdometers(cloud.vehicleOdometers);
                 if (cloud.vehicleConfigs) setVehicleConfigs(cloud.vehicleConfigs);
 
-                if (cloud.appStateData && cloud.appStateData.lastLocation && cloud.appStateData.lastLocation !== lastLocation) {
-                    setLastLocation(cloud.appStateData.lastLocation);
+                // --- RECUPERAR SESIÓN DESDE LA NUBE ---
+                if (cloud.appStateData) {
+                    const cloudState = cloud.appStateData;
+                    
+                    // Restaurar Ubicación
+                    if (cloudState.lastLocation && cloudState.lastLocation !== lastLocation) {
+                        setLastLocation(cloudState.lastLocation);
+                    }
+
+                    // Restaurar Viaje Activo
+                    // Si la nube dice ACTIVE y yo estoy IDLE (recién abrí la app en PC)
+                    if (cloudState.tripStatus === 'ACTIVE' && appState === 'IDLE') {
+                        const confirmContinue = window.confirm(
+                            `🔄 Viaje activo detectado en otro dispositivo.\n\nOrigen: ${cloudState.tripOrigin}\nInicio: ${new Date(cloudState.tripStartTime).toLocaleTimeString()}\n\n¿Deseas continuarlo aquí?`
+                        );
+                        
+                        if (confirmContinue) {
+                            setAppState('ACTIVE');
+                            setCurrentTrip({
+                                ...currentTrip,
+                                startTime: new Date(cloudState.tripStartTime),
+                                origin: cloudState.tripOrigin,
+                                vehicle: cloudState.tripVehicle,
+                                startOdometer: parseInt(cloudState.tripStartOdo || 0),
+                                tripExpenses: [] // Gastos previos ya vienen en 'expenses'
+                            });
+                        }
+                    }
                 }
                 
                 if(!silent) alert("✅ Sincronizado");
@@ -245,7 +280,7 @@ window.App = () => {
         }
     };
 
-    // --- HANDLERS (SOFT DELETE) ---
+    // --- HANDLERS ---
     const deleteTrip = (id) => {
         setTrips(prev => prev.map(t => String(t.id) === String(id) ? { ...t, _deleted: true, updatedAt: new Date().toISOString() } : t));
         setEditingTrip(null);
@@ -266,7 +301,7 @@ window.App = () => {
         }
     };
 
-    // --- TIMERS Y LOGICA COMUN ---
+    // Timer
     useEffect(() => {
         let interval;
         if (appState === 'ACTIVE' && currentTrip.startTime) {
@@ -279,8 +314,7 @@ window.App = () => {
 
     const getActiveConfig = () => vehicleConfigs[((appState === 'ACTIVE' || appState === 'ENDING' || appState === 'STARTING') ? currentTrip.vehicle : dashboardVehicleId)] || vehicleConfigs['PERSONAL'];
     
-    // --- APP FLOW HANDLERS ---
-    
+    // UI Logic
     const handleStartPress = () => {
         setInputOdometer(vehicleOdometers[dashboardVehicleId].toString());
         setInputDestination('');
@@ -309,7 +343,8 @@ window.App = () => {
     const startTripProcess = (startOdo, destinationOverride = undefined) => {
         setCurrentTrip(prev => ({ ...prev, startTime: new Date(), origin: lastLocation, destination: destinationOverride !== undefined ? destinationOverride : inputDestination, startOdometer: startOdo }));
         setAppState('ACTIVE');
-        handleCloudSync(true); 
+        // Auto-sync
+        setTimeout(() => handleCloudSync(true), 500);
     };
 
     const handleArrivePress = () => {
@@ -322,7 +357,7 @@ window.App = () => {
     const confirmEndTrip = () => {
         const endOdo = parseInt(inputOdometer) || 0;
         const newTrip = {
-            id: generateId('trip'), // ID UNICO
+            id: generateId('trip'),
             date: new Date().toLocaleDateString(),
             startTime: currentTrip.startTime instanceof Date ? currentTrip.startTime.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : "00:00",
             endTime: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
@@ -352,7 +387,7 @@ window.App = () => {
         }
         if (newTrip.destination.toLowerCase().startsWith('cliente')) {
             setVisits(prev => [{ 
-                id: generateId('visit'), // ID UNICO
+                id: generateId('visit'), 
                 client: newTrip.destination, date: newTrip.date, 
                 inboundTrip: newTrip, outboundTrip: null, status: 'OPEN', 
                 updatedAt: new Date().toISOString(), _deleted: false 
@@ -370,8 +405,7 @@ window.App = () => {
         const v = parseInt(val); if(!isNaN(v)) setVehicleOdometers(p => ({...p, [dashboardVehicleId]: v})); setShowOdometerEditor(false); 
     };
     const updateVehicleConfig = (f, v) => setVehicleConfigs(p => ({...p, [editingVehicleId]: {...p[editingVehicleId], [f]: v}}));
-    
-    const handleChargeTypeSelection = (t) => { setShowChargeTypeModal(false); /* logic */ openExpenseModalLogic('Carga Eléctrica'); };
+    const handleChargeTypeSelection = (t) => { setShowChargeTypeModal(false); openExpenseModalLogic('Carga Eléctrica'); };
     
     const handleLocationSelection = (loc) => { 
         if (locationSelectorMode === 'ORIGIN') {
@@ -397,15 +431,13 @@ window.App = () => {
     
     const saveEditedTrip = (t) => { setTrips(prev => prev.map(x => x.id === t.id ? {...t, updatedAt: new Date().toISOString()} : x)); setEditingTrip(null); };
     const saveEditedVisit = (v) => { setVisits(prev => prev.map(x => x.id === v.id ? {...v, updatedAt: new Date().toISOString()} : x)); setEditingVisit(null); };
-    
-    // Config Handlers
     const handleExportData = () => { 
          const data = JSON.stringify({trips, expenses, visits}, null, 2);
          const blob = new Blob([data], {type: "application/json"});
          const url = URL.createObjectURL(blob);
          const a = document.createElement('a'); a.href = url; a.download = "backup.json"; a.click();
     };
-    const handleImportData = (e) => { /* Import logic */ };
+    const handleImportData = (e) => { /* Import */ };
 
     const openExpenseModalLogic = (category, amountOverride = null, expenseToEdit = null) => {
         const currentVId = (appState === 'ACTIVE' || appState === 'ENDING' || appState === 'STARTING') ? currentTrip.vehicle : dashboardVehicleId;
@@ -431,7 +463,7 @@ window.App = () => {
 
     const confirmExpense = () => {
         const newExpense = {
-            id: expenseModalData.id || generateId('exp'), // ID UNICO
+            id: expenseModalData.id || generateId('exp'),
             date: new Date().toLocaleDateString(),
             time: new Date().toLocaleTimeString(),
             category: expenseModalData.category,
@@ -481,7 +513,6 @@ window.App = () => {
             {/* Modales */}
             <UpdateAppModal isOpen={showUpdateAppModal} onClose={() => setShowUpdateAppModal(false)} onConfirm={handleAppUpdateConfirm} />
             <ResumeTripModal isOpen={showResumeModal} onResume={confirmResume} onDiscard={discardResume} />
-            
             <ExpenseModal isOpen={expenseModalData.isOpen} onClose={(a) => { if(a==='DELETE') deleteExpense(); else setExpenseModalData({...expenseModalData, isOpen: false}) }} onConfirm={confirmExpense} expenseData={expenseModalData} setExpenseData={setExpenseModalData} />
             <CategorySelector isOpen={showExpenseCategorySelector} onClose={() => setShowExpenseCategorySelector(false)} onSelect={openExpenseModalLogic} />
             <ChargeTypeModal isOpen={showChargeTypeModal} onClose={() => setShowChargeTypeModal(false)} onSelectType={handleChargeTypeSelection} />
@@ -495,7 +526,7 @@ window.App = () => {
             <TripEditModal isOpen={!!editingTrip} trip={editingTrip} onClose={()=>setEditingTrip(null)} onSave={saveEditedTrip} onDelete={(id)=>deleteTrip(id)} />
             <VisitEditModal isOpen={!!editingVisit} visit={editingVisit} onClose={()=>setEditingVisit(null)} onSave={saveEditedVisit} onDelete={(id)=>deleteVisit(id)} />
 
-            {/* Vistas (IMPORTANTE: Filtramos datos borrados) */}
+            {/* Vistas */}
             {appState === 'IDLE' && <HomeView 
                 vehicleOdometers={vehicleOdometers} dashboardVehicleId={dashboardVehicleId} lastLocation={lastLocation} 
                 trips={trips.filter(t => !t._deleted)} 
