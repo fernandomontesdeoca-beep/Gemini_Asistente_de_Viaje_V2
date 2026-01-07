@@ -36,6 +36,7 @@ window.App = () => {
     const [pendingResumeData, setPendingResumeData] = useState(null);
     const [showDataImportModal, setShowDataImportModal] = useState(false);
     
+    // Estado de Sincronización
     const [googleScriptUrl, setGoogleScriptUrl] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -50,6 +51,7 @@ window.App = () => {
     
     const [lastLocation, setLastLocation] = useState('Casa');
     
+    // DATOS (Arrays)
     const [trips, setTrips] = useState([]);
     const [expenses, setExpenses] = useState([]);
     const [visits, setVisits] = useState([]);
@@ -75,6 +77,7 @@ window.App = () => {
     const [textModalTitle, setTextModalTitle] = useState('Nombre del Cliente');
     const [pendingStartData, setPendingStartData] = useState(null);
 
+    // Configs
     const [vehicleConfigs, setVehicleConfigs] = useState({
         PERSONAL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '14.24', currency: 'UYU' },
         COMPANY_FUEL: { tollPrice: '162.00', fuelPrice: '78.02', kmValue: '12.00', currency: 'UYU' },
@@ -96,7 +99,7 @@ window.App = () => {
     const [gapKm, setGapKm] = useState(0);
     const [elapsedTime, setElapsedTime] = useState(0);
 
-    // --- FUNCIONES DE RESUME (Scope Correcto) ---
+    // --- FUNCIONES DE RESUME ---
     const confirmResume = () => {
         if (pendingResumeData) {
             setAppState(pendingResumeData.appState);
@@ -124,7 +127,7 @@ window.App = () => {
                     const data = await response.json();
                     if (data.version !== APP_VERSION) setShowUpdateAppModal(true);
                 }
-            } catch (error) { console.warn("Check version error", error); }
+            } catch (error) { console.warn("Versión check fallido:", error); }
         };
         if (appState === 'IDLE') checkAppVersion();
     }, [appState]);
@@ -173,23 +176,28 @@ window.App = () => {
         window.location.reload(true);
     };
 
-    // --- SYNC MEJORADO (Detecta Estado Real) ---
-    const handleCloudSync = async (silent = false) => {
+    // --- SYNC MEJORADO (FIX RACE CONDITION) ---
+    // overrideData permite enviar datos "frescos" que React aún no ha guardado en el estado
+    const handleCloudSync = async (silent = false, overrideData = null) => {
         if (!googleScriptUrl) { if(!silent) alert("Falta URL de Google."); return; }
         setIsSyncing(true);
         try {
-            // LÓGICA DE ESTADO REAL:
-            // Si hay un startTime definido, significa que el viaje está activo (aunque estemos en Settings)
-            let realStatus = appState;
-            if (currentTrip.startTime && (appState === 'SETTINGS' || appState === 'HISTORY' || appState === 'STARTING')) {
+            // Usamos los datos override si existen, sino los del estado actual
+            const currentTripData = overrideData?.currentTrip || currentTrip;
+            const appStateData = overrideData?.appState || appState;
+
+            // Lógica de Estado Real
+            let realStatus = appStateData;
+            // Si hay fecha de inicio y no estamos en IDLE o ENDING, forzamos ACTIVE para que la nube lo sepa
+            if (currentTripData.startTime && (appStateData === 'SETTINGS' || appStateData === 'HISTORY' || appStateData === 'STARTING')) {
                 realStatus = 'ACTIVE';
             }
 
             const dataToSync = { 
                 trips, expenses, visits, vehicleOdometers, vehicleConfigs, lastLocation, 
                 currentTripState: { 
-                    appState: realStatus, // Enviamos el estado real
-                    currentTrip, 
+                    appState: realStatus, 
+                    currentTrip: currentTripData, 
                     lastUpdated: new Date().toISOString() 
                 } 
             };
@@ -198,7 +206,7 @@ window.App = () => {
             
             if (result.status === 'success' && result.data) {
                 const cloud = result.data;
-                // MERGE DATA
+                // MERGE
                 if (cloud.trips) setTrips(cloud.trips);
                 if (cloud.expenses) setExpenses(cloud.expenses);
                 if (cloud.visits && cloud.trips) {
@@ -212,18 +220,15 @@ window.App = () => {
                 if (cloud.vehicleOdometers) setVehicleOdometers(cloud.vehicleOdometers);
                 if (cloud.vehicleConfigs) setVehicleConfigs(cloud.vehicleConfigs);
 
-                // --- RECUPERAR SESIÓN DESDE LA NUBE ---
+                // Recuperar estado desde la nube
                 if (cloud.appStateData) {
                     const cloudState = cloud.appStateData;
-                    
-                    // Restaurar Ubicación
                     if (cloudState.lastLocation && cloudState.lastLocation !== lastLocation) {
                         setLastLocation(cloudState.lastLocation);
                     }
 
-                    // Restaurar Viaje Activo
-                    // Si la nube dice ACTIVE y yo estoy IDLE (recién abrí la app en PC)
-                    if (cloudState.tripStatus === 'ACTIVE' && appState === 'IDLE') {
+                    // Restaurar Viaje Activo si estoy IDLE
+                    if (cloudState.tripStatus === 'ACTIVE' && appStateData === 'IDLE') {
                         const confirmContinue = window.confirm(
                             `🔄 Viaje activo detectado en otro dispositivo.\n\nOrigen: ${cloudState.tripOrigin}\nInicio: ${new Date(cloudState.tripStartTime).toLocaleTimeString()}\n\n¿Deseas continuarlo aquí?`
                         );
@@ -236,7 +241,7 @@ window.App = () => {
                                 origin: cloudState.tripOrigin,
                                 vehicle: cloudState.tripVehicle,
                                 startOdometer: parseInt(cloudState.tripStartOdo || 0),
-                                tripExpenses: [] // Gastos previos ya vienen en 'expenses'
+                                tripExpenses: []
                             });
                         }
                     }
@@ -255,23 +260,15 @@ window.App = () => {
     // --- RESET TOTAL ---
     const handleResetAll = async () => {
         if (!confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará TODOS los datos del celular y de Google Sheets. Es irreversible.")) return;
-        
         setIsSyncing(true);
         try {
-            if (googleScriptUrl) {
-                await window.GoogleSheetSync.resetCloudData(googleScriptUrl);
-            }
-            setTrips([]);
-            setExpenses([]);
-            setVisits([]);
+            if (googleScriptUrl) await window.GoogleSheetSync.resetCloudData(googleScriptUrl);
+            setTrips([]); setExpenses([]); setVisits([]);
             setVehicleOdometers({ PERSONAL: 0, COMPANY_FUEL: 0, COMPANY_ELECTRIC: 0, OTHER: 0 });
-            setLastLocation('Casa');
-            setAppState('IDLE');
-            
+            setLastLocation('Casa'); setAppState('IDLE');
             await window.dbHelper.set('trips', []);
             await window.dbHelper.set('expenses', []);
             await window.dbHelper.set('visits', []);
-            
             alert("🧹 Sistema restablecido de fábrica.");
         } catch (e) {
             alert("Error al resetear: " + e.message);
@@ -280,7 +277,7 @@ window.App = () => {
         }
     };
 
-    // --- HANDLERS ---
+    // --- HANDLERS (SOFT DELETE) ---
     const deleteTrip = (id) => {
         setTrips(prev => prev.map(t => String(t.id) === String(id) ? { ...t, _deleted: true, updatedAt: new Date().toISOString() } : t));
         setEditingTrip(null);
@@ -340,11 +337,29 @@ window.App = () => {
         startTripProcess(inputOdoVal, destinationOverride);
     };
 
+    // --- CORRECCIÓN CRÍTICA: ENVÍO DIRECTO DE ESTADO ---
     const startTripProcess = (startOdo, destinationOverride = undefined) => {
-        setCurrentTrip(prev => ({ ...prev, startTime: new Date(), origin: lastLocation, destination: destinationOverride !== undefined ? destinationOverride : inputDestination, startOdometer: startOdo }));
+        const newStartTime = new Date();
+        const newDestination = destinationOverride !== undefined ? destinationOverride : inputDestination;
+        
+        // Creamos el objeto del viaje "futuro"
+        const newTripData = {
+            ...currentTrip, 
+            startTime: newStartTime, 
+            origin: lastLocation, 
+            destination: newDestination, 
+            startOdometer: startOdo 
+        };
+
+        // Actualizamos React (visual)
+        setCurrentTrip(newTripData);
         setAppState('ACTIVE');
-        // Auto-sync
-        setTimeout(() => handleCloudSync(true), 500);
+        
+        // Sincronizamos INMEDIATAMENTE pasando los datos "duros", sin esperar al estado de React
+        handleCloudSync(true, { 
+            currentTrip: newTripData, 
+            appState: 'ACTIVE' 
+        }); 
     };
 
     const handleArrivePress = () => {
@@ -398,6 +413,8 @@ window.App = () => {
         setLastLocation(inputDestination);
         setAppState('IDLE');
         window.dbHelper.set('app_state_persist', null);
+        
+        // Sync al terminar (dando un pequeño respiro para que las variables locales se asienten)
         setTimeout(() => handleCloudSync(true), 500);
     };
 
@@ -406,7 +423,6 @@ window.App = () => {
     };
     const updateVehicleConfig = (f, v) => setVehicleConfigs(p => ({...p, [editingVehicleId]: {...p[editingVehicleId], [f]: v}}));
     const handleChargeTypeSelection = (t) => { setShowChargeTypeModal(false); openExpenseModalLogic('Carga Eléctrica'); };
-    
     const handleLocationSelection = (loc) => { 
         if (locationSelectorMode === 'ORIGIN') {
             if (loc === 'Cliente') { setTextModalTitle('Nombre del Cliente'); setShowDestinationModal(true); } 
@@ -496,10 +512,16 @@ window.App = () => {
         }
         setExpenseModalData({ ...expenseModalData, isOpen: false });
         if (appState === 'STARTING' && pendingStartData && expenseModalData.category === 'Estacionamiento') {
-             setCurrentTrip(prev => ({ ...prev, startTime: new Date(), origin: lastLocation, destination: pendingStartData.dest || inputDestination, startOdometer: pendingStartData.odo }));
+             // Reutilizar la lógica de startTripProcess pero con los datos pendientes
+             const newStartTime = new Date();
+             const newDestination = pendingStartData.dest || inputDestination;
+             const newTripData = { ...currentTrip, startTime: newStartTime, origin: lastLocation, destination: newDestination, startOdometer: pendingStartData.odo };
+             
+             setCurrentTrip(newTripData);
              setAppState('ACTIVE');
              setPendingStartData(null);
-             setTimeout(() => handleCloudSync(true), 500);
+             
+             handleCloudSync(true, { currentTrip: newTripData, appState: 'ACTIVE' });
         }
     };
 
