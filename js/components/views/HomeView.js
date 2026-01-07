@@ -17,7 +17,6 @@ window.HomeView = ({
 }) => {
     return (
         <div className="flex flex-col h-full bg-slate-100">
-            {/* ... (Modales anteriores showLocationSelector, showVehicleSelector, showOdometerEditor se mantienen igual) ... */}
             {showLocationSelector && (
                 <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowLocationSelector(false)}>
                     <div className="bg-white w-full rounded-2xl p-4 shadow-xl" onClick={e => e.stopPropagation()}>
@@ -64,7 +63,6 @@ window.HomeView = ({
                 </div>
             )}
 
-            {/* HEADER */}
             <div className="bg-slate-800 text-white p-6 rounded-b-[2rem] shadow-xl z-10">
                 <div className="flex justify-between items-start mb-6">
                     <div><h1 className="text-xl font-bold">Bitácora de Viaje</h1><p className="text-slate-400 text-xs">Sistema de Control</p></div>
@@ -91,7 +89,6 @@ window.HomeView = ({
                 </div>
             </div>
 
-            {/* CONTENIDO PRINCIPAL */}
             <div className="flex-1 flex flex-col items-center justify-center relative">
                 <div className="absolute top-6 w-full px-6 flex justify-between">
                     <button onClick={() => {
@@ -116,14 +113,11 @@ window.HomeView = ({
                 </div>
             </div>
             
-            {/* HISTORIAL RECIENTE Y VERSION */}
             <div className="bg-white h-1/4 rounded-t-[2rem] shadow-lg p-6 overflow-hidden flex flex-col">
                 <div className="flex justify-between items-end mb-4">
                     <h3 className="text-slate-300 text-xs font-bold uppercase tracking-wider">Últimos Viajes</h3>
-                    {/* VERSIÓN AQUI */}
                     <span className="text-[10px] font-mono text-slate-300 opacity-60">v{APP_VERSION}</span>
                 </div>
-
                 <div className="space-y-3 overflow-y-auto h-full pb-10 scrollbar-hide flex-1">
                     {trips.length === 0 ? <p className="text-slate-300 text-center text-sm italic mt-4">No hay viajes registrados</p> : 
                         trips.map(t => (
