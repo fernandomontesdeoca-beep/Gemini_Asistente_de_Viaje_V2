@@ -1,5 +1,5 @@
 // ==========================================
-// BACKEND: ASISTENTE DE VIAJE v3.3.1 (Anti-Ghost)
+// BACKEND: ASISTENTE DE VIAJE v3.5.0 (Merge Inteligente)
 // ==========================================
 
 const SCHEMA = {
@@ -24,20 +24,18 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-    // === RESET DE EMERGENCIA ===
     if (data.command === "RESET_ALL") {
       const sheets = ss.getSheets();
       sheets.forEach(sheet => {
         if (Object.values(SHEET_NAMES).includes(sheet.getName())) sheet.clear();
       });
-      return response("success", "Base de datos reseteada.");
+      return response("success", "Reset completo.");
     }
 
     // === SINCRONIZACIÓN ===
     syncTable(ss, SHEET_NAMES.TRIPS, data.trips, SCHEMA.TRIPS);
     syncTable(ss, SHEET_NAMES.EXPENSES, data.expenses, SCHEMA.EXPENSES);
     
-    // Aplanar Visitas
     const visitsFlat = (data.visits || []).map(v => ({
       ...v,
       inboundTripId: v.inboundTrip ? v.inboundTrip.id : (v.inboundTripId || ""),
@@ -45,7 +43,6 @@ function doPost(e) {
     }));
     syncTable(ss, SHEET_NAMES.VISITS, visitsFlat, SCHEMA.VISITS);
 
-    // Tablas simples
     if(data.vehicleOdometers) {
        const odoList = Object.entries(data.vehicleOdometers).map(([k,v]) => ({id:k, value:v, updatedAt: new Date().toISOString()}));
        syncTable(ss, SHEET_NAMES.ODOMETERS, odoList, SCHEMA.ODOMETERS);
@@ -55,7 +52,6 @@ function doPost(e) {
        syncTable(ss, SHEET_NAMES.CONFIGS, cfgList, SCHEMA.CONFIGS);
     }
     
-    // Estado App
     if (data.currentTripState) {
         const stateList = [
             { key: "lastLocation", value: data.lastLocation, updatedAt: new Date().toISOString() },
@@ -68,7 +64,6 @@ function doPost(e) {
         syncTable(ss, SHEET_NAMES.APP_STATE, stateList, SCHEMA.APP_STATE);
     }
 
-    // === RESPUESTA ===
     return response("success", "OK", {
       trips: readTable(ss, SHEET_NAMES.TRIPS, SCHEMA.TRIPS),
       expenses: readTable(ss, SHEET_NAMES.EXPENSES, SCHEMA.EXPENSES),
@@ -85,7 +80,7 @@ function doPost(e) {
   }
 }
 
-// === ALGORITMO ANTI-DUPLICADOS ===
+// === ALGORITMO LAST WRITE WINS (LWW) ===
 function syncTable(ss, sheetName, incomingItems, headers) {
   if (!incomingItems || incomingItems.length === 0) return;
   
@@ -93,41 +88,32 @@ function syncTable(ss, sheetName, incomingItems, headers) {
   if (!sheet) { sheet = ss.insertSheet(sheetName); sheet.appendRow(headers); }
   
   const lastRow = sheet.getLastRow();
-  let dbMap = new Map(); // Mapa ID -> Fila
+  let dbMap = new Map();
   
-  // Leer datos existentes
   if (lastRow > 1) {
-      // Leemos solo la columna de IDs para velocidad (Columna 1)
       const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues(); 
-      ids.forEach((row, idx) => {
-          // Guardamos ID como String limpio
-          dbMap.set(String(row[0]).trim(), idx + 2); 
-      });
+      ids.forEach((row, idx) => dbMap.set(String(row[0]).trim(), idx + 2));
   }
 
   const dateIdx = headers.indexOf("updatedAt");
 
   incomingItems.forEach(item => {
-    // Usar el primer campo como ID y limpiarlo
     const idVal = item[headers[0]];
-    if(idVal === undefined || idVal === null) return; // Skip si no hay ID
+    if(idVal === undefined || idVal === null) return;
     const strId = String(idVal).trim();
     
     let writeRow = null;
     let shouldWrite = true;
 
-    // 1. CHEQUEO: ¿Existe en el Mapa (Nube o Cache Local)?
     if (dbMap.has(strId)) {
         const rowNum = dbMap.get(strId);
-        
-        // 2. CHEQUEO: ¿Es más nuevo?
         if (dateIdx > -1) {
-            // Leemos fecha de la celda específica solo si es necesario (Optimización)
             const existingDateCell = sheet.getRange(rowNum, dateIdx + 1).getValue();
             const existingDate = new Date(existingDateCell || 0).getTime();
             const incomingDate = new Date(item.updatedAt || 0).getTime();
-            
-            if (incomingDate <= existingDate) shouldWrite = false; // Nube gana
+            // IMPORTANTE: Solo escribimos si el dato entrante es ESTRICTAMENTE más nuevo
+            // Si son iguales, asumimos que ya está sincronizado
+            if (incomingDate <= existingDate) shouldWrite = false; 
         }
         if (shouldWrite) writeRow = rowNum;
     }
@@ -135,19 +121,14 @@ function syncTable(ss, sheetName, incomingItems, headers) {
     if (shouldWrite) {
         const rowArray = headers.map(h => {
              let val = item[h];
-             // Convertir fechas a string ISO para evitar problemas de formato Excel
              if (val instanceof Date) return val.toISOString();
              return (val === undefined || val === null) ? "" : val;
         });
 
-        if (writeRow) {
-            sheet.getRange(writeRow, 1, 1, headers.length).setValues([rowArray]);
-        } else {
+        if (writeRow) sheet.getRange(writeRow, 1, 1, headers.length).setValues([rowArray]);
+        else {
             sheet.appendRow(rowArray);
-            // 3. ACTUALIZACIÓN CRÍTICA DEL MAPA
-            // Registramos el nuevo ID inmediatamente para que si viene duplicado en este mismo lote,
-            // se detecte como "Existente" y se actualice en lugar de crear otra fila.
-            dbMap.set(strId, sheet.getLastRow()); 
+            dbMap.set(strId, sheet.getLastRow()); // Actualizar mapa en memoria
         }
     }
   });
@@ -156,15 +137,13 @@ function syncTable(ss, sheetName, incomingItems, headers) {
 function readTable(ss, sheetName, headers) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() < 2) return [];
-  // Leemos todo como texto plano para evitar formatos científicos
-  const raw = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getDisplayValues();
+  const raw = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getDisplayValues(); // DisplayValues para evitar conversión científica
   return raw.map(row => {
       let obj = {}; 
       headers.forEach((h, i) => {
-          // Intentar recuperar tipos básicos
           let val = row[i];
           if(h === "startOdometer" || h === "endOdometer" || h === "amount" || h === "distance") {
-             val = val ? parseFloat(val) : 0;
+             val = val ? parseFloat(val.replace(',','.')) : 0; // Robustez numérica
           }
           obj[h] = val;
       }); 
@@ -181,5 +160,5 @@ function readConfigs(ss, sheetName, headers) {
     let obj = {}; list.forEach(i => { const id = i.id; delete i.id; obj[id] = i; }); return obj;
 }
 function response(status, msg, data=null) {
-    return ContentService.createTextOutput(JSON.stringify({ status: status, message: msg, data: data })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ status, message: msg, data })).setMimeType(ContentService.MimeType.JSON);
 }
