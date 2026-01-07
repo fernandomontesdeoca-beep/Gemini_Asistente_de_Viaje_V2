@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trip-assistant-v3.5.0'; // ACTUALIZADO A 3.5.0
+const CACHE_NAME = 'trip-assistant-v3.5.1'; // ACTUALIZADO A 3.5.1
 const IS_PRODUCTION = true;
 
 // Archivos LOCALES requeridos para que la app funcione offline.
