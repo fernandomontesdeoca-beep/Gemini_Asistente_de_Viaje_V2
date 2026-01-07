@@ -1,6 +1,6 @@
 {
-  "version": "3.5.1",
-  "build": "20260106",
+  "version": "3.6.0",
+  "build": "20260107",
   "priority": "high",
-  "description": "Critical Fix: Ghost cards (Soft Delete), Robust IDs & Hard Reset"
+  "description": "Code Audit & Refactoring: Version tracking, improved structure & security"
 }
