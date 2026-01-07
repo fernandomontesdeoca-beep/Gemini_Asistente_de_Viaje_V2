@@ -1,7 +1,5 @@
 // ==========================================
 // INDEXEDDB HELPERS (Persistencia de Datos)
-// Version: 3.6.0
-// Last Modified: 2026-01-07
 // ==========================================
 const DB_NAME = 'TripAssistantDB';
 const STORE_NAME = 'app_data';
