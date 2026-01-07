@@ -1,3 +1,9 @@
+// ==========================================
+// VISTA DE VIAJE ACTIVO
+// Version: 3.6.0
+// Last Updated: 2026-01-07
+// ==========================================
+
 const Icon = window.Icon;
 const formatMoney = window.formatMoney;
 const getVehicleInfo = window.getVehicleInfo;

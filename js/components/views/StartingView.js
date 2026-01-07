@@ -1,3 +1,9 @@
+// ==========================================
+// VISTA DE INICIO DE VIAJE
+// Version: 3.6.0
+// Last Updated: 2026-01-07
+// ==========================================
+
 const Icon = window.Icon;
 const LOCATIONS_PRESETS = window.LOCATIONS_PRESETS;
 const LOCATIONS_CONFIG = window.LOCATIONS_CONFIG;

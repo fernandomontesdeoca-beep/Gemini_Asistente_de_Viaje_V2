@@ -1,5 +1,7 @@
 // ==========================================
 // SISTEMA DE ICONOS INTEGRADO (GLOBAL)
+// Version: 3.6.0
+// Last Updated: 2026-01-07
 // ==========================================
 window.ICONS = {
     Play: <polygon points="5 3 19 12 5 21 5 3" />,

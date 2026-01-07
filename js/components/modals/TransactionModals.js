@@ -1,3 +1,9 @@
+// ==========================================
+// MODALES DE TRANSACCIONES
+// Version: 3.6.0
+// Last Updated: 2026-01-07
+// ==========================================
+
 const { useState, useEffect } = React;
 const Icon = window.Icon;
 const CURRENCIES = window.CURRENCIES;

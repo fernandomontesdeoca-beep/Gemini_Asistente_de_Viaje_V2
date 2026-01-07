@@ -1,3 +1,9 @@
+// ==========================================
+// COMPONENTE PRINCIPAL DE LA APLICACIÓN
+// Version: 3.6.0
+// Last Updated: 2026-01-07
+// ==========================================
+
 const { useState, useEffect, useRef, useCallback } = React;
 
 // --- Imports ---

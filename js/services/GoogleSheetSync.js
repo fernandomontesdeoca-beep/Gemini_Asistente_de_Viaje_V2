@@ -1,5 +1,7 @@
 // ==========================================
 // SERVICIO DE SINCRONIZACIÓN (Google Sheets)
+// Version: 3.6.0
+// Last Updated: 2026-01-07
 // ==========================================
 
 window.GoogleSheetSync = {

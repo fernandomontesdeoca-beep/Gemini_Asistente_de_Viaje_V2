@@ -1,4 +1,10 @@
-const CACHE_NAME = 'trip-assistant-v3.5.1'; // ACTUALIZADO A 3.5.1
+// ==========================================
+// SERVICE WORKER - PWA
+// Version: 3.6.0
+// Last Updated: 2026-01-07
+// ==========================================
+
+const CACHE_NAME = 'trip-assistant-v3.6.0'; // ACTUALIZADO A 3.6.0
 const IS_PRODUCTION = true;
 
 // Archivos LOCALES requeridos para que la app funcione offline.

@@ -1,3 +1,9 @@
+// ==========================================
+// VISTA PRINCIPAL (HOME)
+// Version: 3.6.0
+// Last Updated: 2026-01-07
+// ==========================================
+
 const Icon = window.Icon;
 const VEHICLE_TYPES = window.VEHICLE_TYPES;
 const LOCATIONS_PRESETS = window.LOCATIONS_PRESETS;

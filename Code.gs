@@ -1,5 +1,7 @@
 // ==========================================
-// BACKEND: ASISTENTE DE VIAJE v3.5.0 (Merge Inteligente)
+// BACKEND: ASISTENTE DE VIAJE v3.6.0 (Merge Inteligente)
+// Version: 3.6.0
+// Last Updated: 2026-01-07
 // ==========================================
 
 const SCHEMA = {
