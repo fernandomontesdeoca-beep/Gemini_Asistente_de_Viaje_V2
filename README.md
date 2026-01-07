@@ -1,67 +1,128 @@
-# **🚗 Asistente de Viaje V2 (Trip Assistant)**
+# 🚗 Asistente de Viaje V2 (Trip Assistant)
 
-Una aplicación web progresiva (PWA) diseñada para llevar una bitácora detallada de viajes, control de odómetro, gestión de gastos y visitas a clientes.
+Una Aplicación Web Progresiva (PWA) robusta y *offline-first* diseñada para la gestión integral de bitácoras de viaje, control de flotas, seguimiento de gastos y sincronización de datos en tiempo real.
 
-## **✨ Características Principales**
+Esta herramienta permite a los usuarios registrar viajes, visitas a clientes y gastos operativos sin necesidad de conexión constante a internet. La aplicación guarda todo localmente y sincroniza la información automáticamente con una Hoja de Cálculo de Google cuando recupera la conexión.
 
-* **🧩 Arquitectura Modular:** El código ha sido refactorizado en componentes separados (JS/CSS) para facilitar su mantenimiento y escalabilidad, manteniendo su ligereza.
-* **💾 Persistencia de Datos:** Utiliza **IndexedDB** para guardar automáticamente todo tu historial, configuraciones y estado del viaje. Los datos no se pierden al cerrar el navegador y funcionan sin internet.
-* **📱 Diseño Responsivo:** Interfaz optimizada para móviles con botones grandes y navegación ágil.
-* **🛣️ Flujo de Viaje:** * Control automático de **Odómetro** (se actualiza con las cargas de combustible).  
-  * Cronómetro de tiempo en ruta.  
-  * Detección de "Visitas" (Ciclo: Origen \-\> Cliente \-\> Destino).  
-* **💰 Gestión de Gastos:** * Registro de Peajes, Combustible (Nafta/Eléctrico), Comida y Alojamiento.  
-  * Manejo de tarifas diferenciadas para vehículos eléctricos (Carga AC/DC).  
-  * Precios configurables (Valores oficiales de UTE/ANCAP Uruguay).
+---
 
-## **🚀 Cómo usar**
+## 🚀 Acceso Inmediato
 
-### **Opción 1: Online (GitHub Pages)**
-
-https://fernandomontesdeoca-beep.github.io/Gemini_Asistente_de_Viaje_V2/
+### **Opción 1: Usar Online (Recomendado)**
+Accede a la última versión desplegada aquí:
+👉 **[https://fernandomontesdeoca-beep.github.io/Gemini_Asistente_de_Viaje_V2/](https://fernandomontesdeoca-beep.github.io/Gemini_Asistente_de_Viaje_V2/)**
 
 ### **Opción 2: Instalación (Android/PC)**
-
 1. Abre el enlace anterior en Chrome o Edge.
 2. **En Android:** Abre el menú del navegador y selecciona "Agregar a la pantalla de inicio" o "Instalar Aplicación".
-3. **En PC:** Haz clic en el ícono de instalación (+) en la barra de direcciones.
+3. **En PC:** Haz clic en el ícono de instalación (⊕) en la barra de direcciones.
 
-## **🛠️ Tecnologías**
+---
 
-* **React 18** (vía CDN)  
-* **Tailwind CSS** (vía CDN)  
-* **Lucide Icons** (Sistema integrado SVG para rendimiento offline)  
-* **Babel Standalone**
-* **IndexedDB** (Almacenamiento local)
+## ✨ Características Principales
 
-## **⚙️ Configuración**
+### 🛣️ Gestión de Viajes
+* **Ciclo de Vida Completo:** Flujo intuitivo de estados: *Inicio* -> *En Ruta* -> *Llegada* -> *Cierre*.
+* **Cronómetro en Tiempo Real:** Visualización del tiempo transcurrido durante el viaje activo.
+* **Odómetro Inteligente:** Control y actualización automática del kilometraje por vehículo.
+* **Validaciones:** Alertas de discrepancia de kilometraje y validación de consistencia al cerrar viajes.
 
-Al iniciar la aplicación, puedes ir al ícono de engranaje ⚙️ para configurar:
+### 💰 Control de Gastos
+* **Categorización:** Registro detallado de gastos como:
+    * ⛽ Combustible (Nafta/Eléctrico con soporte para tarifas AC/DC).
+    * 🅿️ Estacionamiento.
+    * 🚧 Peajes.
+    * 🍽️ Alimentación y 🏨 Alojamiento.
+* **Múltiples Monedas:** Soporte para gastos en diferentes divisas (UYU, U$D, etc.).
+* **Métodos de Pago:** Clasificación por Efectivo, Débito, Crédito o Transferencia.
 
-* Precios de Peaje.  
-* Precio de Combustible (o kWh para eléctricos).  
-* Valor del KM recorrido.
+### 🔄 Sincronización Inteligente (Bidireccional)
+* **Cloud Sync:** Conexión directa con Google Sheets mediante Google Apps Script.
+* **Smart Merge (Client-Side):** Algoritmo de fusión inteligente que evita que la nube sobrescriba datos locales recientes.
+* **Algoritmo "Last Write Wins":** Resolución de conflictos basada en marcas de tiempo (`updatedAt`).
+* **Soft Delete:** Sistema de borrado lógico (`_deleted: true`) para garantizar que las eliminaciones se propaguen correctamente y evitar "datos fantasma".
+* **Resiliencia:** Capacidad de retomar viajes iniciados en un dispositivo y finalizarlos en otro (ej. iniciar en móvil, cerrar en PC).
 
-## **📂 Estructura del Proyecto**
+### ⚙️ Configuración y Personalización
+* **Multi-Vehículo:** Gestión de flotas con configuraciones independientes de rendimiento y tipo de combustible.
+* **Tarifas Configurables:** Ajuste de precios de combustible, peajes y valor del KM recorrido.
+* **Modo Offline:** Persistencia local completa usando **IndexedDB**.
+* **Gestión de Datos:** Opciones para exportar copias de seguridad locales (JSON) y realizar un "Reset de Fábrica" remoto.
 
-* `index.html`: Punto de entrada y estructura base.
-* `css/`: Estilos personalizados.
-* `js/`: Lógica de la aplicación dividida en módulos:
-    * `components/`: Componentes de React (App, Modals, Icons).
-    * `db.js`: Manejo de base de datos local.
-    * `config.js`: Constantes y configuraciones.
-    * `main.js`: Inicialización de React.
+---
 
-## **🤝 Contribuir**
+## 🛠️ Tecnologías Utilizadas
 
-Las contribuciones son bienvenidas. Si tienes una idea para mejorar el asistente:
+La aplicación está construida con una arquitectura moderna y ligera, sin dependencias de compilación complejas (No-Build), ideal para despliegue rápido.
 
-1. Haz un Fork del repositorio.  
-2. Crea una rama con tu feature (`git checkout -b feature/NuevaFuncionalidad`).  
-3. Haz Commit (`git commit -m 'Agregado nueva funcionalidad'`).  
-4. Haz Push (`git push origin feature/NuevaFuncionalidad`).  
-5. Abre un Pull Request.
+* **Frontend:**
+    * **React 18:** Implementado vía CDN para la interfaz de usuario reactiva.
+    * **Tailwind CSS:** Para el diseño y estilos utilitarios (vía CDN).
+    * **Babel Standalone:** Para la transpilación de JSX en el navegador.
+* **Almacenamiento Local:**
+    * **IndexedDB:** Base de datos transaccional en el navegador para almacenamiento masivo offline.
+    * **Service Workers:** Para la capacidad de instalación (PWA) y caché de recursos estáticos.
+* **Backend & Nube:**
+    * **Google Apps Script:** Actúa como API Serverless para recibir y enviar datos.
+    * **Google Sheets:** Actúa como base de datos relacional en la nube.
 
-## **📄 Licencia**
+---
 
-Este proyecto está bajo la Licencia MIT. Ver el archivo LICENSE para más detalles.
+## ☁️ Configuración del Backend (Google Apps Script)
+
+Para que la sincronización funcione, debes desplegar el script en tu cuenta de Google.
+
+1.  **Crear la Hoja de Cálculo:**
+    * Abre [Google Sheets](https://sheets.google.com) y crea una hoja nueva llamada `Bitacora_Viajes_DB`.
+
+2.  **Abrir el Editor de Secuencias de Comandos:**
+    * En la hoja, ve al menú `Extensiones` > `Apps Script`.
+
+3.  **Implementar el Código:**
+    * Borra cualquier código que aparezca en el editor.
+    * Copia y pega íntegramente el contenido del archivo **`Code.gs`** de este repositorio.
+    * El script gestionará automáticamente las pestañas: `Trips`, `Expenses`, `Visits`, `Odometers`, `Configs` y `AppState`.
+
+4.  **Desplegar como Aplicación Web:**
+    * Haz clic en el botón azul **"Implementar"** > **"Nueva implementación"**.
+    * **Tipo:** Aplicación web.
+    * **Descripción:** `v3.5.0` (o la actual).
+    * **Ejecutar como:** `Yo` (tu cuenta de Google).
+    * **Quién tiene acceso:** `Cualquier persona` (Necesario para el funcionamiento sin login).
+    * Haz clic en **"Implementar"**.
+
+5.  **Conectar con la App:**
+    * Copia la **URL de la aplicación web** generada (empieza por `https://script.google.com/...`).
+    * Abre la App, ve a **Configuración** ⚙️ y pégala en el campo correspondiente.
+
+---
+
+## 📂 Estructura del Proyecto
+
+* **`index.html`**: Punto de entrada, carga de librerías y contenedor raíz.
+* **`js/main.js`**: Inicialización de React y montaje de la App.
+* **`js/config.js`**: Constantes globales (Versión, Tipos de vehículos, Categorías).
+* **`js/db.js`**: Capa de abstracción para IndexedDB.
+* **`js/services/GoogleSheetSync.js`**: Servicio encargado de la comunicación HTTP con Google.
+* **`js/components/App.js`**: Lógica central, manejo de estado, sincronización y enrutamiento.
+* **`js/components/views/`**: Pantallas principales (`Home`, `ActiveTrip`, `Settings`, etc.).
+* **`js/components/modals/`**: Componentes UI emergentes.
+* **`Code.gs`**: Lógica del servidor para Google Apps Script.
+
+---
+
+## 🤝 Contribución
+
+Repositorio oficial:
+[https://github.com/fernandomontesdeoca-beep/Gemini_Asistente_de_Viaje_V2.git](https://github.com/fernandomontesdeoca-beep/Gemini_Asistente_de_Viaje_V2.git)
+
+Si deseas mejorar este proyecto:
+1.  Haz un Fork del repositorio.
+2.  Crea una rama (`git checkout -b feature/Mejora`).
+3.  Haz tus cambios y commit (`git commit -m 'Agregada mejora'`).
+4.  Haz push a la rama (`git push origin feature/Mejora`).
+5.  Abre un Pull Request.
+
+---
+
+**Licencia:** MIT License.
