@@ -1,6 +1,6 @@
 {
-  "version": "3.6.0",
-  "build": "20260106",
-  "priority": "high",
-  "description": "Critical Fix: Ghost cards (Soft Delete), Robust IDs & Hard Reset"
+  "version": "4.0.0",
+  "build": "20260120",
+  "priority": "critical",
+  "description": "Major Update: Driver-First UI, Local-First Architecture, Extended Configs."
 }

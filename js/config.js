@@ -1,11 +1,18 @@
 // ==========================================
-// CONFIGURACIÓN Y CONSTANTES (GLOBALES)
+// CONFIGURACIÓN GLOBAL v4.0.0
 // ==========================================
 
-// --- VERSIÓN DE LA APP ---
-window.APP_VERSION = "3.6.0"; // Versión Backup & Restore
+window.APP_VERSION = "4.0.0";
 
-// --- UI CONFIG ---
+// --- VEHÍCULOS (Definición Base) ---
+// Se ha ampliado para incluir eficiencia y capacidad
+window.VEHICLE_TYPES = [
+    { id: 'PERSONAL', label: 'Auto Personal', icon: 'Car', type: 'fuel', defaultEfficiency: 10 },
+    { id: 'COMPANY_FUEL', label: 'Camioneta Empresa', icon: 'Truck', type: 'fuel', defaultEfficiency: 8 },
+    { id: 'COMPANY_ELECTRIC', label: 'Eléctrico Empresa', icon: 'Zap', type: 'electric', defaultEfficiency: 5 }, // km/kWh
+    { id: 'OTHER', label: 'Otro Vehículo', icon: 'Car', type: 'fuel', defaultEfficiency: 10 },
+];
+
 window.LOCATIONS_CONFIG = {
     'Cliente': { icon: 'User', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
     'Trabajo': { icon: 'Briefcase', color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
@@ -16,7 +23,6 @@ window.LOCATIONS_CONFIG = {
 };
 window.LOCATIONS_PRESETS = Object.keys(window.LOCATIONS_CONFIG);
 
-// --- CATEGORÍAS ---
 window.EXPENSE_CATEGORIES = {
     FOOD: ['Desayuno', 'Almuerzo', 'Merienda', 'Cena', 'Refrigerio'],
     LODGING: ['Alojamiento'],
@@ -34,24 +40,12 @@ window.PAYMENT_METHODS = [
 window.CURRENCIES = ['UYU', 'U$D', 'Otro'];
 window.EXPENSE_TYPES = ['Personal', 'Empresa'];
 
-window.VEHICLE_TYPES = [
-    { id: 'PERSONAL', label: 'Personal', short: 'Personal', icon: 'Car', type: 'fuel' },
-    { id: 'COMPANY_FUEL', label: 'Empresa Combustible', short: 'Emp. Comb.', icon: 'Truck', type: 'fuel' },
-    { id: 'COMPANY_ELECTRIC', label: 'Empresa Eléctrico', short: 'Emp. Elec.', icon: 'Zap', type: 'electric' },
-    { id: 'OTHER', label: 'Otros', short: 'Otros', icon: 'Car', type: 'fuel' },
-];
-
-// --- VALORES OFICIALES ---
 window.OFFICIAL_RATES = {
     toll: '162.00',
-    fuel: '78.02', // Super 95
+    fuel: '78.02', 
     electricAC: '9.50',
     electricDC: '10.80'
 };
 
-// --- HELPERS GLOBALES ---
 window.getVehicleInfo = (id) => window.VEHICLE_TYPES.find(v => v.id === id) || window.VEHICLE_TYPES[0];
-
-window.formatMoney = (amount) => {
-     return Number(amount || 0).toFixed(2);
-};
+window.formatMoney = (amount) => Number(amount || 0).toFixed(2);
