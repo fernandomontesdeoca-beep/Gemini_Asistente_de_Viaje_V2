@@ -1,5 +1,5 @@
 // ==========================================
-// BACKEND: ASISTENTE DE VIAJE v3.5.0 (Merge Inteligente)
+// BACKEND: ASISTENTE DE VIAJE v3.6.0 (Backup & Restore)
 // ==========================================
 
 const SCHEMA = {
@@ -24,24 +24,27 @@ function doPost(e) {
     const data = JSON.parse(e.postData.contents);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+    // === COMANDO: RESET TOTAL (Borrado remoto) ===
     if (data.command === "RESET_ALL") {
       const sheets = ss.getSheets();
       sheets.forEach(sheet => {
         if (Object.values(SHEET_NAMES).includes(sheet.getName())) sheet.clear();
       });
-      return response("success", "Reset completo.");
+      return response("success", "Nube formateada correctamente.");
     }
 
-    // === SINCRONIZACIÓN ===
-    syncTable(ss, SHEET_NAMES.TRIPS, data.trips, SCHEMA.TRIPS);
-    syncTable(ss, SHEET_NAMES.EXPENSES, data.expenses, SCHEMA.EXPENSES);
+    // === SINCRONIZACIÓN (Guardar cambios locales) ===
+    // Solo procesamos si vienen datos en el array
+    if (data.trips) syncTable(ss, SHEET_NAMES.TRIPS, data.trips, SCHEMA.TRIPS);
+    if (data.expenses) syncTable(ss, SHEET_NAMES.EXPENSES, data.expenses, SCHEMA.EXPENSES);
     
+    // Visitas: Aplanar objetos para guardar IDs
     const visitsFlat = (data.visits || []).map(v => ({
       ...v,
       inboundTripId: v.inboundTrip ? v.inboundTrip.id : (v.inboundTripId || ""),
       outboundTripId: v.outboundTrip ? v.outboundTrip.id : (v.outboundTripId || "")
     }));
-    syncTable(ss, SHEET_NAMES.VISITS, visitsFlat, SCHEMA.VISITS);
+    if (data.visits) syncTable(ss, SHEET_NAMES.VISITS, visitsFlat, SCHEMA.VISITS);
 
     if(data.vehicleOdometers) {
        const odoList = Object.entries(data.vehicleOdometers).map(([k,v]) => ({id:k, value:v, updatedAt: new Date().toISOString()}));
@@ -52,6 +55,7 @@ function doPost(e) {
        syncTable(ss, SHEET_NAMES.CONFIGS, cfgList, SCHEMA.CONFIGS);
     }
     
+    // Estado App
     if (data.currentTripState) {
         const stateList = [
             { key: "lastLocation", value: data.lastLocation, updatedAt: new Date().toISOString() },
@@ -64,7 +68,9 @@ function doPost(e) {
         syncTable(ss, SHEET_NAMES.APP_STATE, stateList, SCHEMA.APP_STATE);
     }
 
-    return response("success", "OK", {
+    // === RESTAURACIÓN (Devolver todo lo que hay en la nube) ===
+    // Esto es lo que permite recuperar los datos en un dispositivo nuevo
+    return response("success", "Sincronizado", {
       trips: readTable(ss, SHEET_NAMES.TRIPS, SCHEMA.TRIPS),
       expenses: readTable(ss, SHEET_NAMES.EXPENSES, SCHEMA.EXPENSES),
       visits: readTable(ss, SHEET_NAMES.VISITS, SCHEMA.VISITS),
@@ -80,7 +86,7 @@ function doPost(e) {
   }
 }
 
-// === ALGORITMO LAST WRITE WINS (LWW) ===
+// === ALGORITMO LAST WRITE WINS ===
 function syncTable(ss, sheetName, incomingItems, headers) {
   if (!incomingItems || incomingItems.length === 0) return;
   
@@ -111,8 +117,6 @@ function syncTable(ss, sheetName, incomingItems, headers) {
             const existingDateCell = sheet.getRange(rowNum, dateIdx + 1).getValue();
             const existingDate = new Date(existingDateCell || 0).getTime();
             const incomingDate = new Date(item.updatedAt || 0).getTime();
-            // IMPORTANTE: Solo escribimos si el dato entrante es ESTRICTAMENTE más nuevo
-            // Si son iguales, asumimos que ya está sincronizado
             if (incomingDate <= existingDate) shouldWrite = false; 
         }
         if (shouldWrite) writeRow = rowNum;
@@ -128,7 +132,7 @@ function syncTable(ss, sheetName, incomingItems, headers) {
         if (writeRow) sheet.getRange(writeRow, 1, 1, headers.length).setValues([rowArray]);
         else {
             sheet.appendRow(rowArray);
-            dbMap.set(strId, sheet.getLastRow()); // Actualizar mapa en memoria
+            dbMap.set(strId, sheet.getLastRow());
         }
     }
   });
@@ -137,13 +141,13 @@ function syncTable(ss, sheetName, incomingItems, headers) {
 function readTable(ss, sheetName, headers) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() < 2) return [];
-  const raw = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getDisplayValues(); // DisplayValues para evitar conversión científica
+  const raw = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getDisplayValues();
   return raw.map(row => {
       let obj = {}; 
       headers.forEach((h, i) => {
           let val = row[i];
           if(h === "startOdometer" || h === "endOdometer" || h === "amount" || h === "distance") {
-             val = val ? parseFloat(val.replace(',','.')) : 0; // Robustez numérica
+             val = val ? parseFloat(val.replace(',','.')) : 0;
           }
           obj[h] = val;
       }); 

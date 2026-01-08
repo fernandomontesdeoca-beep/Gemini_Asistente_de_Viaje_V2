@@ -3,7 +3,7 @@
 // ==========================================
 
 // --- VERSIÓN DE LA APP ---
-window.APP_VERSION = "3.5.1"; // Debe coincidir con version.json
+window.APP_VERSION = "3.6.0"; // Versión Backup & Restore
 
 // --- UI CONFIG ---
 window.LOCATIONS_CONFIG = {

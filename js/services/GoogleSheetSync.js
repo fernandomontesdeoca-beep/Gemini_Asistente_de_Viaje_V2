@@ -5,6 +5,7 @@
 window.GoogleSheetSync = {
     /**
      * Sincroniza datos locales con la nube (Bidireccional)
+     * Envía datos locales y recibe el estado más actual de la nube.
      */
     syncData: async (url, data) => {
         if (!url) throw new Error("URL de configuración no válida.");
